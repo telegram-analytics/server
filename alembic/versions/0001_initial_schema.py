@@ -22,16 +22,35 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # ── Enum types ────────────────────────────────────────────────────────────
-    sa.Enum("hour", "day", "week", "month", name="aggregation_period").create(
-        op.get_bind(), checkfirst=True
+    # Use DO/EXCEPTION because PostgreSQL has no "CREATE TYPE IF NOT EXISTS".
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "CREATE TYPE aggregation_period AS ENUM ('hour', 'day', 'week', 'month'); "
+            "EXCEPTION WHEN duplicate_object THEN null; END $$"
+        )
     )
-    sa.Enum("every", "every_n", "threshold", name="alert_condition").create(
-        op.get_bind(), checkfirst=True
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "CREATE TYPE alert_condition AS ENUM ('every', 'every_n', 'threshold'); "
+            "EXCEPTION WHEN duplicate_object THEN null; END $$"
+        )
     )
-    sa.Enum("daily", "weekly", "monthly", name="report_frequency").create(
-        op.get_bind(), checkfirst=True
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "CREATE TYPE report_frequency AS ENUM ('daily', 'weekly', 'monthly'); "
+            "EXCEPTION WHEN duplicate_object THEN null; END $$"
+        )
     )
-    sa.Enum("7d", "30d", "90d", "1y", name="chart_period").create(op.get_bind(), checkfirst=True)
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "CREATE TYPE chart_period AS ENUM ('7d', '30d', '90d', '1y'); "
+            "EXCEPTION WHEN duplicate_object THEN null; END $$"
+        )
+    )
 
     # ── projects ──────────────────────────────────────────────────────────────
     op.create_table(
@@ -101,7 +120,9 @@ def upgrade() -> None:
         sa.Column("event_name", sa.Text(), nullable=False),
         sa.Column(
             "period",
-            sa.Enum("hour", "day", "week", "month", name="aggregation_period"),
+            postgresql.ENUM(
+                "hour", "day", "week", "month", name="aggregation_period", create_type=False
+            ),
             nullable=False,
         ),
         sa.Column("period_start", sa.DateTime(timezone=True), nullable=False),
@@ -141,7 +162,9 @@ def upgrade() -> None:
         sa.Column("event_name", sa.Text(), nullable=False),
         sa.Column(
             "condition",
-            sa.Enum("every", "every_n", "threshold", name="alert_condition"),
+            postgresql.ENUM(
+                "every", "every_n", "threshold", name="alert_condition", create_type=False
+            ),
             nullable=False,
         ),
         sa.Column("threshold_n", sa.Integer(), nullable=True),
@@ -175,12 +198,14 @@ def upgrade() -> None:
         sa.Column("event_name", sa.Text(), nullable=False),
         sa.Column(
             "frequency",
-            sa.Enum("daily", "weekly", "monthly", name="report_frequency"),
+            postgresql.ENUM(
+                "daily", "weekly", "monthly", name="report_frequency", create_type=False
+            ),
             nullable=False,
         ),
         sa.Column(
             "chart_period",
-            sa.Enum("7d", "30d", "90d", "1y", name="chart_period"),
+            postgresql.ENUM("7d", "30d", "90d", "1y", name="chart_period", create_type=False),
             nullable=False,
         ),
         sa.Column("last_sent_at", sa.DateTime(timezone=True), nullable=True),
@@ -261,8 +286,8 @@ def downgrade() -> None:
     op.drop_table("events")
     op.drop_table("projects")
 
-    # Drop enum types (order does not matter — they have no dependents now).
-    sa.Enum(name="chart_period").drop(op.get_bind(), checkfirst=True)
-    sa.Enum(name="report_frequency").drop(op.get_bind(), checkfirst=True)
-    sa.Enum(name="alert_condition").drop(op.get_bind(), checkfirst=True)
-    sa.Enum(name="aggregation_period").drop(op.get_bind(), checkfirst=True)
+    # Drop enum types — PostgreSQL supports DROP TYPE IF EXISTS natively.
+    op.execute(sa.text("DROP TYPE IF EXISTS chart_period"))
+    op.execute(sa.text("DROP TYPE IF EXISTS report_frequency"))
+    op.execute(sa.text("DROP TYPE IF EXISTS alert_condition"))
+    op.execute(sa.text("DROP TYPE IF EXISTS aggregation_period"))
