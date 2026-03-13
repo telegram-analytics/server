@@ -54,6 +54,16 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Return the module-level session factory (for background tasks).
+
+    Raises RuntimeError if ``init_db()`` has not been called yet.
+    """
+    if _session_factory is None:
+        raise RuntimeError("Database not initialised. Call init_db() first.")
+    return _session_factory
+
+
 async def close_db() -> None:
     """Dispose the engine; called on app shutdown."""
     if _engine is not None:

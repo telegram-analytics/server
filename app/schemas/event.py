@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 class TrackEventRequest(BaseModel):
     api_key: str = Field(..., min_length=1)
-    event: str = Field(..., min_length=1, max_length=255, alias="event")
+    event_name: str = Field(..., min_length=1, max_length=255)
     session_id: str = Field(..., min_length=1)
     properties: dict[str, Any] = Field(default_factory=dict)
     # Optional client-supplied timestamp; server uses now() when absent.
