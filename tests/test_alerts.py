@@ -246,7 +246,7 @@ async def test_alert_delete_removes_alert(db_session, session_factory):
         pid = str(project.id)
         aid = str(alert.id)
 
-    update, ctx = _make_callback(chat_id=ADMIN_ID, data=f"alert_del:{aid}:{pid}")
+    update, ctx = _make_callback(chat_id=ADMIN_ID, data=f"alert_d:{aid}")
 
     with patch("app.bot.handlers.alerts.get_session_factory", return_value=session_factory), \
          patch("app.bot.handlers.alerts.get_settings") as mock_settings:
@@ -271,7 +271,7 @@ async def test_alert_toggle_changes_active_status(db_session, session_factory):
         aid = str(alert.id)
         assert alert.is_active is True
 
-    update, ctx = _make_callback(chat_id=ADMIN_ID, data=f"alert_toggle:{aid}:{pid}")
+    update, ctx = _make_callback(chat_id=ADMIN_ID, data=f"alert_t:{aid}")
 
     with patch("app.bot.handlers.alerts.get_session_factory", return_value=session_factory), \
          patch("app.bot.handlers.alerts.get_settings") as mock_settings:

@@ -11,7 +11,7 @@ from app.bot.states import BotStateService
 from app.core.config import get_settings
 from app.core.database import get_session_factory
 from app.models.alert import AlertCondition
-from app.services.alerts import create_alert, delete_alert, list_alerts, toggle_alert
+from app.services.alerts import create_alert, delete_alert, get_alert, list_alerts, toggle_alert
 from app.services.projects import get_project
 
 
@@ -42,16 +42,13 @@ async def show_alerts_menu(query, project_id_str: str, admin_chat_id: int) -> No
     for alert in alerts:
         label = _format_alert_label(alert)
         toggle_icon = "⏸️" if alert.is_active else "▶️"
+        aid = str(alert.id)
         rows.append([
-            InlineKeyboardButton(label, callback_data=f"alert_noop:{alert.id}"),
+            InlineKeyboardButton(label, callback_data=f"alert_noop"),
         ])
         rows.append([
-            InlineKeyboardButton(
-                toggle_icon, callback_data=f"alert_toggle:{alert.id}:{project_id_str}"
-            ),
-            InlineKeyboardButton(
-                "🗑", callback_data=f"alert_del:{alert.id}:{project_id_str}"
-            ),
+            InlineKeyboardButton(toggle_icon, callback_data=f"alert_t:{aid}"),
+            InlineKeyboardButton("🗑", callback_data=f"alert_d:{aid}"),
         ])
 
     rows.append([
@@ -91,19 +88,15 @@ async def alert_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         condition = data[11:]
         await _handle_condition_choice(query, condition, admin_chat_id)
 
-    elif data.startswith("alert_del:"):
-        parts = data[10:].split(":", 1)
-        if len(parts) == 2:
-            alert_id_str, project_id_str = parts
-            await _delete_alert(query, alert_id_str, project_id_str, admin_chat_id)
+    elif data.startswith("alert_d:"):
+        alert_id_str = data[8:]
+        await _delete_alert(query, alert_id_str, admin_chat_id)
 
-    elif data.startswith("alert_toggle:"):
-        parts = data[13:].split(":", 1)
-        if len(parts) == 2:
-            alert_id_str, project_id_str = parts
-            await _toggle_alert(query, alert_id_str, project_id_str, admin_chat_id)
+    elif data.startswith("alert_t:"):
+        alert_id_str = data[8:]
+        await _toggle_alert(query, alert_id_str, admin_chat_id)
 
-    elif data.startswith("alert_noop:"):
+    elif data == "alert_noop":
         pass
 
     elif data.startswith("back:alerts:"):
@@ -201,38 +194,44 @@ async def _handle_condition_choice(query, condition: str, admin_chat_id: int) ->
             )
 
 
-async def _delete_alert(query, alert_id_str: str, project_id_str: str, admin_chat_id: int) -> None:
+async def _delete_alert(query, alert_id_str: str, admin_chat_id: int) -> None:
     """Delete an alert and refresh the list."""
     factory = get_session_factory()
     async with factory() as session:
-        deleted = await delete_alert(
-            session,
-            uuid.UUID(alert_id_str),
-            uuid.UUID(project_id_str),
-        )
-        await session.commit()
+        alert = await get_alert(session, uuid.UUID(alert_id_str))
+        if alert is None:
+            await query.edit_message_text("❌ Alert not found.")
+            return
 
-    if not deleted:
-        await query.edit_message_text("❌ Alert not found.")
-        return
+        project = await get_project(session, alert.project_id, admin_chat_id)
+        if project is None:
+            await query.edit_message_text("❌ Alert not found.")
+            return
+
+        project_id_str = str(alert.project_id)
+        await delete_alert(session, alert.id, alert.project_id)
+        await session.commit()
 
     await show_alerts_menu(query, project_id_str, admin_chat_id)
 
 
-async def _toggle_alert(query, alert_id_str: str, project_id_str: str, admin_chat_id: int) -> None:
+async def _toggle_alert(query, alert_id_str: str, admin_chat_id: int) -> None:
     """Toggle an alert's active status and refresh the list."""
     factory = get_session_factory()
     async with factory() as session:
-        alert = await toggle_alert(
-            session,
-            uuid.UUID(alert_id_str),
-            uuid.UUID(project_id_str),
-        )
-        await session.commit()
+        alert = await get_alert(session, uuid.UUID(alert_id_str))
+        if alert is None:
+            await query.edit_message_text("❌ Alert not found.")
+            return
 
-    if alert is None:
-        await query.edit_message_text("❌ Alert not found.")
-        return
+        project = await get_project(session, alert.project_id, admin_chat_id)
+        if project is None:
+            await query.edit_message_text("❌ Alert not found.")
+            return
+
+        project_id_str = str(alert.project_id)
+        await toggle_alert(session, alert.id, alert.project_id)
+        await session.commit()
 
     await show_alerts_menu(query, project_id_str, admin_chat_id)
 

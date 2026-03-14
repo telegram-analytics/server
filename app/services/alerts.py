@@ -53,15 +53,16 @@ async def list_alerts(
 async def get_alert(
     session: AsyncSession,
     alert_id: uuid.UUID,
-    project_id: uuid.UUID,
+    project_id: uuid.UUID | None = None,
 ) -> Alert | None:
-    """Return an alert by ID, or None if not found or doesn't belong to project."""
-    result = await session.execute(
-        select(Alert).where(
-            Alert.id == alert_id,
-            Alert.project_id == project_id,
-        )
-    )
+    """Return an alert by ID, or None if not found.
+    
+    If project_id is provided, also verifies the alert belongs to that project.
+    """
+    query = select(Alert).where(Alert.id == alert_id)
+    if project_id is not None:
+        query = query.where(Alert.project_id == project_id)
+    result = await session.execute(query)
     return result.scalar_one_or_none()
 
 
