@@ -255,7 +255,23 @@ async def handle_text_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
         svc = BotStateService(session)
         state = await svc.get(chat_id)
 
-        if state is None or state.flow != "add_alert":
+        if state is None:
+            return
+
+        # Dispatch to the appropriate conversation flow handler
+        if state.flow in ("set_retention", "set_allowlist"):
+            from app.bot.handlers.settings import (
+                handle_set_allowlist_text,
+                handle_set_retention_text,
+            )
+            if state.flow == "set_retention":
+                await handle_set_retention_text(update, session, svc, state)
+            else:
+                await handle_set_allowlist_text(update, session, svc, state)
+            await session.commit()
+            return
+
+        if state.flow != "add_alert":
             return
 
         payload = state.payload or {}

@@ -8,6 +8,12 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from app.bot.handlers.alerts import show_alerts_menu
+from app.bot.handlers.reports import send_chart_photo, show_reports_menu
+from app.bot.handlers.settings import (
+    show_settings_menu,
+    start_set_allowlist,
+    start_set_retention,
+)
 from app.core.config import get_settings
 from app.core.database import get_session_factory
 from app.services.projects import create_project, delete_project, get_project, list_projects
@@ -111,6 +117,26 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     elif data.startswith("menu:alerts:"):
         project_id_str = data[12:]
         await show_alerts_menu(query, project_id_str, admin_chat_id)
+
+    elif data.startswith("menu:reports:"):
+        project_id_str = data[13:]
+        await show_reports_menu(query, project_id_str, admin_chat_id)
+
+    elif data.startswith("rpt_chart:"):
+        project_id_str = data[10:]
+        await send_chart_photo(query, project_id_str, admin_chat_id)
+
+    elif data.startswith("menu:settings:"):
+        project_id_str = data[14:]
+        await show_settings_menu(query, project_id_str, admin_chat_id)
+
+    elif data.startswith("set_ret:"):
+        project_id_str = data[8:]
+        await start_set_retention(query, project_id_str, admin_chat_id)
+
+    elif data.startswith("set_dom:"):
+        project_id_str = data[8:]
+        await start_set_allowlist(query, project_id_str, admin_chat_id)
 
     elif data.startswith("menu:"):
         parts = data.split(":", 2)
