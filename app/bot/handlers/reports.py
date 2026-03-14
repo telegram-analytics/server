@@ -6,8 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.core.config import get_settings
 from app.core.database import get_session_factory

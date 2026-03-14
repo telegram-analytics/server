@@ -44,7 +44,7 @@ async def show_alerts_menu(query, project_id_str: str, admin_chat_id: int) -> No
         toggle_icon = "⏸️" if alert.is_active else "▶️"
         aid = str(alert.id)
         rows.append([
-            InlineKeyboardButton(label, callback_data=f"alert_noop"),
+            InlineKeyboardButton(label, callback_data="alert_noop"),
         ])
         rows.append([
             InlineKeyboardButton(toggle_icon, callback_data=f"alert_t:{aid}"),
@@ -151,7 +151,7 @@ async def _handle_condition_choice(query, condition: str, admin_chat_id: int) ->
             return
 
         if condition == "every":
-            alert = await create_alert(
+            await create_alert(
                 session,
                 project_id=uuid.UUID(project_id_str),
                 event_name=event_name,
@@ -171,7 +171,6 @@ async def _handle_condition_choice(query, condition: str, admin_chat_id: int) ->
                 reply_markup=keyboard,
             )
         else:
-            cond_enum = AlertCondition.every_n if condition == "every_n" else AlertCondition.threshold
             payload["condition"] = condition
             await svc.save(
                 chat_id,
@@ -330,7 +329,7 @@ async def handle_text_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
 
             condition = AlertCondition.every_n if condition_str == "every_n" else AlertCondition.threshold
 
-            alert = await create_alert(
+            await create_alert(
                 session,
                 project_id=uuid.UUID(project_id_str),
                 event_name=event_name,

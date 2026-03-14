@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select, update as sql_update
+from sqlalchemy import select
+from sqlalchemy import update as sql_update
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.states import BotStateService
@@ -12,7 +13,6 @@ from app.core.database import get_session_factory
 from app.models.project import Project
 from app.models.settings import ProjectSettings
 from app.services.projects import get_project
-
 
 # ── Menu display ──────────────────────────────────────────────────────────────
 
@@ -97,11 +97,42 @@ async def start_set_allowlist(query, project_id_str: str, admin_chat_id: int) ->
         )
         await session.commit()
 
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌍 Allow all origins", callback_data=f"allow_all:{project_id_str}")],
+    ])
     await query.edit_message_text(
         "🌐 <b>Domain allowlist</b>\n\n"
-        "Enter allowed domains, comma-separated.\n"
-        "Leave empty to allow all origins.\n\n"
+        "Enter allowed domains, comma-separated.\n\n"
         "<i>Example: myapp.com, api.myapp.com</i>",
+        parse_mode="HTML",
+        reply_markup=keyboard,
+    )
+
+
+async def handle_allow_all(query, project_id_str: str, admin_chat_id: int) -> None:
+    """Clear the domain allowlist (allow all origins) via button callback."""
+    chat_id = query.message.chat_id
+
+    try:
+        pid = uuid.UUID(project_id_str)
+    except ValueError:
+        await query.edit_message_text("❌ Invalid project reference.")
+        return
+
+    factory = get_session_factory()
+    async with factory() as session:
+        # Clear conversation state if any
+        svc = BotStateService(session)
+        await svc.clear(chat_id)
+
+        # Clear the allowlist
+        await session.execute(
+            sql_update(Project).where(Project.id == pid).values(domain_allowlist=[])
+        )
+        await session.commit()
+
+    await query.edit_message_text(
+        "✅ Allowlist cleared — all origins allowed.",
         parse_mode="HTML",
     )
 
@@ -163,7 +194,7 @@ async def handle_set_allowlist_text(update, session, svc, state) -> None:
         await update.message.reply_text("❌ Invalid project reference. Please start over.")
         return
 
-    domains = [d.strip() for d in raw.split(",") if d.strip()] if raw else []
+    domains = [d.strip() for d in raw.split(",") if d.strip()]
 
     await session.execute(
         sql_update(Project).where(Project.id == pid).values(domain_allowlist=domains)

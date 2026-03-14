@@ -3,8 +3,6 @@
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 ADMIN_ID = 111
 
 
@@ -104,11 +102,12 @@ async def test_start_set_retention_saves_state(db_session, session_factory):
 
 async def test_set_retention_updates_database(db_session, session_factory):
     """Typing a valid number updates ProjectSettings.retention_days."""
+    from sqlalchemy import select
+
     from app.bot.handlers.alerts import handle_text_message
     from app.bot.states import BotStateService
     from app.models.settings import ProjectSettings
     from app.services.projects import create_project
-    from sqlalchemy import select
 
     async with session_factory() as session:
         project, _ = await create_project(session, name="ret-update.com", admin_chat_id=ADMIN_ID)
@@ -166,11 +165,12 @@ async def test_set_retention_invalid_input(db_session, session_factory):
 
 async def test_set_retention_forever(db_session, session_factory):
     """Entering 0 sets retention to 'forever'."""
+    from sqlalchemy import select
+
     from app.bot.handlers.alerts import handle_text_message
     from app.bot.states import BotStateService
     from app.models.settings import ProjectSettings
     from app.services.projects import create_project
-    from sqlalchemy import select
 
     async with session_factory() as session:
         project, _ = await create_project(session, name="ret-forever.com", admin_chat_id=ADMIN_ID)
@@ -204,11 +204,12 @@ async def test_set_retention_forever(db_session, session_factory):
 
 async def test_set_allowlist_updates_project(db_session, session_factory):
     """Typing domains updates project.domain_allowlist."""
+    from sqlalchemy import select
+
     from app.bot.handlers.alerts import handle_text_message
     from app.bot.states import BotStateService
     from app.models.project import Project
     from app.services.projects import create_project
-    from sqlalchemy import select
 
     async with session_factory() as session:
         project, _ = await create_project(session, name="allow-update.com", admin_chat_id=ADMIN_ID)
@@ -238,13 +239,14 @@ async def test_set_allowlist_updates_project(db_session, session_factory):
         assert "api.myapp.com" in p.domain_allowlist
 
 
-async def test_set_allowlist_empty_clears(db_session, session_factory):
-    """Submitting empty text clears the allowlist (allow all origins)."""
-    from app.bot.handlers.alerts import handle_text_message
-    from app.bot.states import BotStateService
+async def test_allow_all_button_clears_allowlist(db_session, session_factory):
+    """Pressing 'Allow all' button clears the allowlist."""
+    from sqlalchemy import select
+    from sqlalchemy import update as sql_update
+
+    from app.bot.handlers.settings import handle_allow_all
     from app.models.project import Project
     from app.services.projects import create_project
-    from sqlalchemy import select, update as sql_update
 
     async with session_factory() as session:
         project, _ = await create_project(session, name="allow-clear.com", admin_chat_id=ADMIN_ID)
@@ -258,18 +260,15 @@ async def test_set_allowlist_empty_clears(db_session, session_factory):
         )
         await session.commit()
 
-        svc = BotStateService(session)
-        await svc.save(ADMIN_ID, flow="set_allowlist", step="value", payload={"project_id": pid})
-        await session.commit()
+    query = MagicMock()
+    query.message.chat_id = ADMIN_ID
+    query.edit_message_text = AsyncMock()
 
-    update, ctx = _make_message(chat_id=ADMIN_ID, text="")
+    with patch("app.bot.handlers.settings.get_session_factory", return_value=session_factory):
+        await handle_allow_all(query, pid, ADMIN_ID)
 
-    with patch("app.bot.handlers.alerts.get_session_factory", return_value=session_factory), \
-         patch("app.bot.handlers.alerts.get_settings") as mock_settings:
-        mock_settings.return_value.admin_chat_id = ADMIN_ID
-        await handle_text_message(update, ctx)
-
-    text = update.message.reply_text.call_args[0][0]
+    query.edit_message_text.assert_called_once()
+    text = query.edit_message_text.call_args[0][0]
     assert "cleared" in text.lower() or "all origins" in text.lower()
 
     async with session_factory() as session:

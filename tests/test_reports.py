@@ -4,10 +4,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
-from app.models.alert import AlertCondition
-
 ADMIN_ID = 111
 
 

@@ -10,6 +10,7 @@ from telegram.ext import ContextTypes
 from app.bot.handlers.alerts import show_alerts_menu
 from app.bot.handlers.reports import send_chart_photo, show_reports_menu
 from app.bot.handlers.settings import (
+    handle_allow_all,
     show_settings_menu,
     start_set_allowlist,
     start_set_retention,
@@ -17,7 +18,6 @@ from app.bot.handlers.settings import (
 from app.core.config import get_settings
 from app.core.database import get_session_factory
 from app.services.projects import create_project, delete_project, get_project, list_projects
-
 
 # ── /add ──────────────────────────────────────────────────────────────────────
 
@@ -137,6 +137,10 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     elif data.startswith("set_dom:"):
         project_id_str = data[8:]
         await start_set_allowlist(query, project_id_str, admin_chat_id)
+
+    elif data.startswith("allow_all:"):
+        project_id_str = data[10:]
+        await handle_allow_all(query, project_id_str, admin_chat_id)
 
     elif data.startswith("menu:"):
         parts = data.split(":", 2)

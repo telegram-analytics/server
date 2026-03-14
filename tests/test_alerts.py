@@ -7,8 +7,6 @@ CallbackQuery objects with MagicMock/AsyncMock, handlers called directly.
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from app.models.alert import AlertCondition
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -47,7 +45,7 @@ def _make_callback(chat_id: int = ADMIN_ID, data: str = "alert_add:some-uuid"):
 
 
 async def test_create_alert_with_every_condition(db_session, session_factory):
-    from app.services.alerts import create_alert, list_alerts
+    from app.services.alerts import create_alert
     from app.services.projects import create_project
 
     async with session_factory() as session:
