@@ -19,7 +19,7 @@ _HELP_TEXT = (
 async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     assert update.message is not None
     await update.message.reply_text(
-        "👋 <b>Welcome to tg-analytics!</b>\n\n"
+        "👋 <b>Welcome to tgram-analytics!</b>\n\n"
         "Self-hosted analytics you control via Telegram.\n\n"
         "Use /add <i>name</i> to create your first project and get an API key.\n"
         "Use /help for a full list of commands.",

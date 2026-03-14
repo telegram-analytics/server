@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
-        title="tg-analytics",
+        title="tgram-analytics",
         description=(
             "Self-hosted, privacy-first analytics platform "
             "controlled entirely through a Telegram bot."

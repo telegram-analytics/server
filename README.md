@@ -1,9 +1,9 @@
-# tg-analytics · server
+# tgram-analytics · server
 
 > Self-hosted, privacy-first analytics controlled entirely through a Telegram bot.
 > No dashboard. No third parties. Just Telegram.
 
-[![CI](https://github.com/telegram-analytics/server/actions/workflows/ci.yml/badge.svg)](https://github.com/telegram-analytics/server/actions/workflows/ci.yml)
+[![CI](https://github.com/tgram-analytics/server/actions/workflows/ci.yml/badge.svg)](https://github.com/tgram-analytics/server/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 
@@ -20,7 +20,7 @@
 ### 2 — Configure
 
 ```bash
-git clone https://github.com/telegram-analytics/server.git
+git clone https://github.com/tgram-analytics/server.git
 cd server
 cp .env.example .env
 # Edit .env and fill in TELEGRAM_BOT_TOKEN, ADMIN_CHAT_ID, and SECRET_KEY
@@ -204,6 +204,11 @@ Contributions are welcome. Please open an issue before submitting a pull request
 Please follow the existing code style (ruff-enforced) and keep PRs focused.
 
 ---
+
+## Disclaimer
+> This project is an independent open-source project, not affiliated
+> with or endorsed by Telegram Messenger LLP or its parent company in any way.
+> "Telegram" is a trademark of Telegram Messenger LLP.
 
 ## License
 

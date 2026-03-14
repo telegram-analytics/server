@@ -1,4 +1,4 @@
-"""Initial schema — all tables for tg-analytics v1.
+"""Initial schema — all tables for tgram-analytics v1.
 
 Revision ID: 0001
 Revises:
@@ -121,7 +121,12 @@ def upgrade() -> None:
         sa.Column(
             "period",
             postgresql.ENUM(
-                "hour", "day", "week", "month", name="aggregation_period", create_type=False
+                "hour",
+                "day",
+                "week",
+                "month",
+                name="aggregation_period",
+                create_type=False,
             ),
             nullable=False,
         ),
@@ -163,7 +168,11 @@ def upgrade() -> None:
         sa.Column(
             "condition",
             postgresql.ENUM(
-                "every", "every_n", "threshold", name="alert_condition", create_type=False
+                "every",
+                "every_n",
+                "threshold",
+                name="alert_condition",
+                create_type=False,
             ),
             nullable=False,
         ),
@@ -205,7 +214,9 @@ def upgrade() -> None:
         ),
         sa.Column(
             "chart_period",
-            postgresql.ENUM("7d", "30d", "90d", "1y", name="chart_period", create_type=False),
+            postgresql.ENUM(
+                "7d", "30d", "90d", "1y", name="chart_period", create_type=False
+            ),
             nullable=False,
         ),
         sa.Column("last_sent_at", sa.DateTime(timezone=True), nullable=True),

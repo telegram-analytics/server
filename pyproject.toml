@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 packages = ["app"]
 
 [project]
-name = "tg-analytics-server"
+name = "tgram-analytics-server"
 version = "0.1.0"
 description = "Self-hosted, privacy-first analytics platform controlled via Telegram"
 readme = "README.md"
