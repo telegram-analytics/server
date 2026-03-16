@@ -22,6 +22,11 @@ from app.bot.handlers.settings import (
     start_set_allowlist,
     start_set_retention,
 )
+from app.bot.handlers.visitors import (
+    send_visitors_chart,
+    show_visitors_menu,
+    update_visitors_period,
+)
 from app.core.config import get_settings
 from app.core.database import get_session_factory
 from app.services.projects import create_project, delete_project, get_project, list_projects
@@ -157,6 +162,24 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         project_id_str = data[7:]
         await handle_report_project_pick(query, project_id_str, admin_chat_id, ctx)
 
+    elif data.startswith("menu:visitors:"):
+        project_id_str = data[14:]
+        await show_visitors_menu(query, project_id_str, admin_chat_id)
+
+    elif data.startswith("vis_prd:"):
+        # vis_prd:{project_id}:{period}
+        parts = data[8:].rsplit(":", 1)
+        if len(parts) == 2:
+            await update_visitors_period(query, parts[0], admin_chat_id, period=parts[1])
+
+    elif data.startswith("vis_chart:"):
+        # vis_chart:{project_id}:{dimension}:{period}
+        parts = data[10:].rsplit(":", 2)
+        if len(parts) == 3:
+            await send_visitors_chart(
+                query, parts[0], admin_chat_id, dimension=parts[1], period=parts[2]
+            )
+
     elif data.startswith("menu:settings:"):
         project_id_str = data[14:]
         await show_settings_menu(query, project_id_str, admin_chat_id)
@@ -223,10 +246,13 @@ async def _show_project_menu(query, project_id_str: str, admin_chat_id: int) -> 
                 InlineKeyboardButton("📈 Reports", callback_data=f"menu:reports:{project_id_str}"),
             ],
             [
+                InlineKeyboardButton(
+                    "👥 Visitors", callback_data=f"menu:visitors:{project_id_str}"
+                ),
                 InlineKeyboardButton("🔔 Alerts", callback_data=f"menu:alerts:{project_id_str}"),
-                InlineKeyboardButton("⚙️ Settings", callback_data=f"menu:settings:{project_id_str}"),
             ],
             [
+                InlineKeyboardButton("⚙️ Settings", callback_data=f"menu:settings:{project_id_str}"),
                 InlineKeyboardButton("🗑 Delete", callback_data=f"del_ask:{project_id_str}"),
             ],
             [

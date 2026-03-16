@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
 from telegram.ext import ContextTypes
 
+from app.bot.constants import PERIOD_LABEL, PERIODS
 from app.core.config import get_settings
 from app.core.database import get_session_factory
 from app.models.event import Event
@@ -22,19 +23,9 @@ from app.services.analytics import compare_periods, events_over_time
 from app.services.charts import ChartGenerationError, generate_comparison_chart, generate_line_chart
 from app.services.projects import get_project, list_projects
 
-# ── Constants ─────────────────────────────────────────────────────────────────
-
-_PERIODS: dict[str, timedelta] = {
-    "7d": timedelta(days=7),
-    "30d": timedelta(days=30),
-    "90d": timedelta(days=90),
-}
-
-_PERIOD_LABEL: dict[str, str] = {
-    "7d": "last 7 days",
-    "30d": "last 30 days",
-    "90d": "last 90 days",
-}
+# Re-bind module-private aliases so the rest of the file is unchanged.
+_PERIODS = PERIODS
+_PERIOD_LABEL = PERIOD_LABEL
 
 
 # ── Keyboard helpers ───────────────────────────────────────────────────────────

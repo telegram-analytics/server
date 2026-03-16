@@ -1,0 +1,219 @@
+"""Visitors handler: device, browser, and environment breakdowns.
+
+Shows top values for each visitor context dimension ($os, $browser,
+$language, $device_type) with percentage breakdowns and optional
+bar charts per dimension.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+from app.bot.constants import PERIOD_LABEL, PERIODS
+from app.core.config import get_settings
+from app.core.database import get_session_factory
+from app.services.analytics import top_properties
+from app.services.charts import ChartGenerationError, generate_bar_chart
+from app.services.projects import get_project
+
+# ── Dimension config ──────────────────────────────────────────────────────────
+
+_DIMENSIONS: list[tuple[str, str, str]] = [
+    # (property_key, emoji, display_label)
+    ("$os", "🖥", "OS"),
+    ("$browser", "🌐", "Browser"),
+    ("$language", "🌍", "Language"),
+    ("$device_type", "📱", "Device"),
+]
+
+_DIM_KEYS = {d[0] for d in _DIMENSIONS}
+
+
+# ── Keyboard helpers ──────────────────────────────────────────────────────────
+
+
+def _visitors_keyboard(project_id_str: str, period: str) -> InlineKeyboardMarkup:
+    period_row = [
+        InlineKeyboardButton(
+            f"✓ {p}" if p == period else p,
+            callback_data=f"vis_prd:{project_id_str}:{p}",
+        )
+        for p in PERIODS
+    ]
+    chart_row = [
+        InlineKeyboardButton(
+            f"📊 {label}",
+            callback_data=f"vis_chart:{project_id_str}:{key}:{period}",
+        )
+        for key, _emoji, label in _DIMENSIONS
+    ]
+    return InlineKeyboardMarkup(
+        [
+            period_row,
+            chart_row,
+            [InlineKeyboardButton("« Back", callback_data=f"proj:{project_id_str}")],
+        ]
+    )
+
+
+# ── Shared data fetcher ──────────────────────────────────────────────────────
+
+
+async def _build_visitors_text(
+    session,
+    project_id: uuid.UUID,
+    project_name: str,
+    period: str,
+) -> str:
+    """Query all dimensions and format the text summary."""
+    now = datetime.now(UTC)
+    delta = PERIODS.get(period, PERIODS["7d"])
+    start = now - delta
+    period_label = PERIOD_LABEL.get(period, period)
+
+    lines = [
+        f"👥 <b>Visitors: {project_name}</b>",
+        f"<i>{period_label}</i>",
+        "─────────────────",
+    ]
+
+    for prop_key, emoji, label in _DIMENSIONS:
+        rows = await top_properties(
+            session,
+            project_id=project_id,
+            event_name="pageview",
+            property_key=prop_key,
+            start=start,
+            end=now,
+            limit=5,
+        )
+        lines.append(f"\n{emoji} <b>{label}:</b>")
+        if not rows:
+            lines.append("  <i>No data</i>")
+            continue
+
+        total = sum(r["count"] for r in rows)
+        for r in rows:
+            pct = round(r["count"] / total * 100) if total else 0
+            lines.append(f"  • {r['value']}: <b>{r['count']:,}</b> ({pct}%)")
+
+    return "\n".join(lines)
+
+
+# ── Public handlers ───────────────────────────────────────────────────────────
+
+
+async def show_visitors_menu(
+    query, project_id_str: str, admin_chat_id: int, period: str = "7d"
+) -> None:
+    """Show visitor breakdown text with period and chart buttons."""
+    pid = uuid.UUID(project_id_str)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        project = await get_project(session, pid, admin_chat_id)
+        if project is None:
+            await query.edit_message_text("❌ Project not found.")
+            return
+
+        text = await _build_visitors_text(session, pid, project.name, period)
+
+    await query.edit_message_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=_visitors_keyboard(project_id_str, period),
+    )
+
+
+async def update_visitors_period(
+    query, project_id_str: str, admin_chat_id: int, period: str
+) -> None:
+    """Re-render visitors text with a different period."""
+    await show_visitors_menu(query, project_id_str, admin_chat_id, period)
+
+
+async def send_visitors_chart(
+    query,
+    project_id_str: str,
+    admin_chat_id: int,
+    dimension: str,
+    period: str,
+) -> None:
+    """Send a bar chart for a single visitor dimension."""
+    if dimension not in _DIM_KEYS:
+        await query.answer("Unknown dimension.", show_alert=True)
+        return
+
+    pid = uuid.UUID(project_id_str)
+    now = datetime.now(UTC)
+    delta = PERIODS.get(period, PERIODS["7d"])
+    start = now - delta
+    period_label = PERIOD_LABEL.get(period, period)
+    settings = get_settings()
+
+    # Find the display label for the dimension.
+    dim_label = next(label for key, _e, label in _DIMENSIONS if key == dimension)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        project = await get_project(session, pid, admin_chat_id)
+        if project is None:
+            await query.answer("❌ Project not found.", show_alert=True)
+            return
+
+        rows = await top_properties(
+            session,
+            project_id=pid,
+            event_name="pageview",
+            property_key=dimension,
+            start=start,
+            end=now,
+            limit=10,
+        )
+
+    back_keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "« Back to visitors", callback_data=f"vis_prd:{project_id_str}:{period}"
+                )
+            ]
+        ]
+    )
+
+    if not rows:
+        await query.answer(f"No {dim_label} data for {period_label}.", show_alert=True)
+        return
+
+    try:
+        png_bytes = await generate_bar_chart(
+            rows,
+            title=f"{dim_label} — {period_label}",
+            quickchart_url=settings.quickchart_url,
+        )
+    except ChartGenerationError:
+        await query.answer("⚠️ Chart service unavailable.", show_alert=True)
+        return
+
+    # Edit current message as anchor, send chart below.
+    await query.edit_message_text(
+        f"📊 <b>{dim_label}</b> — {period_label}  ↓",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "« Back to visitors", callback_data=f"vis_prd:{project_id_str}:{period}"
+                    )
+                ]
+            ]
+        ),
+    )
+    await query.message.reply_photo(
+        photo=png_bytes,
+        caption=f"👥 {project.name} · {dim_label} · {period_label}",
+        reply_markup=back_keyboard,
+    )

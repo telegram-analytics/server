@@ -121,6 +121,59 @@ async def generate_comparison_chart(
     return await _post_chart(config, quickchart_url)
 
 
+_BAR_COLORS = [
+    "rgb(99, 102, 241)",  # indigo-500
+    "rgb(245, 158, 11)",  # amber-500
+    "rgb(16, 185, 129)",  # emerald-500
+    "rgb(239, 68, 68)",  # red-500
+    "rgb(59, 130, 246)",  # blue-500
+    "rgb(168, 85, 247)",  # purple-500
+    "rgb(236, 72, 153)",  # pink-500
+    "rgb(20, 184, 166)",  # teal-500
+    "rgb(249, 115, 22)",  # orange-500
+    "rgb(107, 114, 128)",  # gray-500
+]
+
+
+async def generate_bar_chart(
+    data: list[dict[str, Any]],
+    *,
+    title: str,
+    quickchart_url: str = "http://quickchart:3400",
+) -> bytes:
+    """Generate a horizontal bar chart and return PNG bytes.
+
+    *data* is a list of ``{"value": str, "count": int}`` dicts as
+    returned by ``analytics.top_properties()``.
+
+    Raises ``ChartGenerationError`` if QuickChart is unavailable.
+    """
+    labels = [row["value"] for row in data]
+    values = [row["count"] for row in data]
+    colors = [_BAR_COLORS[i % len(_BAR_COLORS)] for i in range(len(data))]
+
+    config: dict[str, Any] = {
+        "type": "horizontalBar",
+        "data": {
+            "labels": labels,
+            "datasets": [
+                {
+                    "data": values,
+                    "backgroundColor": colors,
+                }
+            ],
+        },
+        "options": {
+            "plugins": {
+                "title": {"display": True, "text": title},
+                "legend": {"display": False},
+            },
+            "scales": {"xAxes": [{"ticks": {"beginAtZero": True}}]},
+        },
+    }
+    return await _post_chart(config, quickchart_url)
+
+
 async def _post_chart(config: dict[str, Any], quickchart_url: str) -> bytes:
     """POST *config* to QuickChart and return the PNG response body."""
     payload = {
