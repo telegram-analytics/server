@@ -6,10 +6,13 @@ raise ``ChartGenerationError`` on any failure so callers can fall back
 to a text-only message gracefully.
 """
 
+import logging
 from datetime import datetime
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 QUICKCHART_TIMEOUT = 10.0  # seconds
 _LINE_COLOR = "rgb(99, 102, 241)"  # indigo-500
@@ -131,9 +134,10 @@ async def _post_chart(config: dict[str, Any], quickchart_url: str) -> bytes:
         async with httpx.AsyncClient(timeout=QUICKCHART_TIMEOUT) as client:
             response = await client.post(f"{quickchart_url}/chart", json=payload)
         if response.status_code != 200:
-            raise ChartGenerationError(
-                f"QuickChart returned HTTP {response.status_code}: {response.text[:300]}"
-            )
+            msg = f"QuickChart returned HTTP {response.status_code}: {response.text[:300]}"
+            logger.error("Chart generation failed: %s", msg)
+            raise ChartGenerationError(msg)
         return response.content
     except httpx.HTTPError as exc:
+        logger.error("QuickChart unreachable at %s: %s", quickchart_url, exc)
         raise ChartGenerationError(f"QuickChart unreachable: {exc}") from exc

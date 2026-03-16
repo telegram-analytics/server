@@ -192,7 +192,7 @@ async def pageview(
     origin = request.headers.get("origin")
     project = await _resolve_project(body.api_key, origin, session, settings.rate_limit_per_second)
 
-    properties = {"url": body.url}
+    properties = {**body.properties, "url": body.url}
     if body.referrer:
         properties["referrer"] = body.referrer
 

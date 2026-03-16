@@ -22,6 +22,7 @@ class PageviewRequest(BaseModel):
     url: str = Field(..., min_length=1)
     referrer: str | None = None
     timestamp: datetime | None = None
+    properties: dict[str, Any] = Field(default_factory=dict)
 
 
 class EventResponse(BaseModel):
