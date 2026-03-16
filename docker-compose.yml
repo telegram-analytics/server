@@ -2,6 +2,8 @@ services:
   server:
     build: .
     env_file: .env
+    environment:
+      QUICKCHART_URL: http://quickchart:3400
     ports:
       - "8000:8000"
     depends_on:
