@@ -5,6 +5,7 @@ the caller is responsible for committing or rolling back.
 """
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,6 +89,40 @@ async def toggle_alert(
     if alert is None:
         return None
     alert.is_active = not alert.is_active
+    await session.flush()
+    await session.refresh(alert)
+    return alert
+
+
+async def disable_alert(
+    session: AsyncSession,
+    alert_id: uuid.UUID,
+) -> Alert | None:
+    """Set is_active=False on an alert (called from notification buttons).
+
+    Does not verify project ownership — the bot already authenticates the
+    admin_chat_id before dispatching to this handler.
+    Returns None if the alert is not found.
+    """
+    alert = await get_alert(session, alert_id)
+    if alert is None:
+        return None
+    alert.is_active = False
+    await session.flush()
+    await session.refresh(alert)
+    return alert
+
+
+async def mute_alert(
+    session: AsyncSession,
+    alert_id: uuid.UUID,
+    hours: int,
+) -> Alert | None:
+    """Set muted_until = now + hours on an alert. Returns None if not found."""
+    alert = await get_alert(session, alert_id)
+    if alert is None:
+        return None
+    alert.muted_until = datetime.now(UTC) + timedelta(hours=hours)
     await session.flush()
     await session.refresh(alert)
     return alert

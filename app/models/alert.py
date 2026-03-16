@@ -47,6 +47,10 @@ class Alert(Base):
         nullable=False,
         server_default=sa.text("true"),
     )
+    muted_until: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         server_default=sa.text("now()"),

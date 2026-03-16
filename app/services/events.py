@@ -3,6 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
+import sqlalchemy as sa
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -54,11 +55,13 @@ async def evaluate_alerts(
     Returns the list of alerts that fired (for logging / notification).
     Does NOT send Telegram notifications — that is Phase 8's job.
     """
+    now = datetime.now(UTC)
     result = await session.execute(
         select(Alert).where(
             Alert.project_id == project_id,
             Alert.event_name == event_name,
             Alert.is_active.is_(True),
+            sa.or_(Alert.muted_until.is_(None), Alert.muted_until <= now),
         )
     )
     alerts = list(result.scalars().all())
@@ -75,9 +78,7 @@ async def evaluate_alerts(
                 fired.append(alert)
 
         elif alert.condition == AlertCondition.threshold:
-            today_start = datetime.combine(datetime.now(UTC).date(), datetime.min.time()).replace(
-                tzinfo=UTC
-            )
+            today_start = datetime.combine(now.date(), datetime.min.time()).replace(tzinfo=UTC)
             count_result = await session.execute(
                 select(func.count())
                 .select_from(Event)

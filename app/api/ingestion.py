@@ -77,6 +77,8 @@ async def _run_alert_evaluation(project_id: uuid.UUID, event_name: str) -> None:
                 log.warning("project not found for alert notification: %s", project_id)
                 return
 
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
             bot = get_bot()
             for alert in fired:
                 if alert.condition == AlertCondition.every:
@@ -92,11 +94,22 @@ async def _run_alert_evaluation(project_id: uuid.UUID, event_name: str) -> None:
                         f"<b>{alert.threshold_n}</b> today on <b>{project.name}</b>"
                     )
 
+                aid = str(alert.id)
+                keyboard = InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton("🔕 Silence", callback_data=f"alert_sil:{aid}"),
+                            InlineKeyboardButton("🚫 Disable", callback_data=f"alert_dis:{aid}"),
+                        ]
+                    ]
+                )
+
                 try:
                     await bot.send_message(
                         chat_id=project.admin_chat_id,
                         text=msg,
                         parse_mode="HTML",
+                        reply_markup=keyboard,
                     )
                 except Exception:
                     log.exception(

@@ -11,7 +11,15 @@ from app.bot.states import BotStateService
 from app.core.config import get_settings
 from app.core.database import get_session_factory
 from app.models.alert import AlertCondition
-from app.services.alerts import create_alert, delete_alert, get_alert, list_alerts, toggle_alert
+from app.services.alerts import (
+    create_alert,
+    delete_alert,
+    disable_alert,
+    get_alert,
+    list_alerts,
+    mute_alert,
+    toggle_alert,
+)
 from app.services.projects import get_project
 
 
@@ -95,6 +103,18 @@ async def alert_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     elif data.startswith("alert_t:"):
         alert_id_str = data[8:]
         await _toggle_alert(query, alert_id_str, admin_chat_id)
+
+    elif data.startswith("alert_sil:"):
+        rest = data[10:]  # "{alert_id}" or "{alert_id}:{hours}"
+        if ":" in rest:
+            alert_id_str, hours_str = rest.split(":", 1)
+            await _apply_silence(query, alert_id_str, int(hours_str))
+        else:
+            await _show_silence_picker(query, rest)
+
+    elif data.startswith("alert_dis:"):
+        alert_id_str = data[10:]
+        await _disable_alert_from_notification(query, alert_id_str)
 
     elif data == "alert_noop":
         pass
@@ -369,3 +389,52 @@ async def handle_text_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
                 parse_mode="HTML",
                 reply_markup=keyboard,
             )
+
+
+async def _show_silence_picker(query, alert_id_str: str) -> None:
+    """Show duration picker for silencing an alert from a notification message."""
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("1h", callback_data=f"alert_sil:{alert_id_str}:1"),
+                InlineKeyboardButton("24h", callback_data=f"alert_sil:{alert_id_str}:24"),
+                InlineKeyboardButton("7gg", callback_data=f"alert_sil:{alert_id_str}:168"),
+            ]
+        ]
+    )
+    await query.edit_message_reply_markup(reply_markup=keyboard)
+
+
+async def _apply_silence(query, alert_id_str: str, hours: int) -> None:
+    """Apply a silence period to an alert and confirm in the message."""
+    factory = get_session_factory()
+    async with factory() as session:
+        alert = await mute_alert(session, uuid.UUID(alert_id_str), hours)
+        if alert is None:
+            await query.answer("Alert not found.", show_alert=True)
+            return
+        await session.commit()
+
+    if hours == 1:
+        label = "1 ora"
+    elif hours == 24:
+        label = "24 ore"
+    else:
+        label = "7 giorni"
+
+    await query.answer(f"🔕 Silenziato per {label}.", show_alert=False)
+    await query.edit_message_reply_markup(reply_markup=None)
+
+
+async def _disable_alert_from_notification(query, alert_id_str: str) -> None:
+    """Disable an alert from a notification message button."""
+    factory = get_session_factory()
+    async with factory() as session:
+        alert = await disable_alert(session, uuid.UUID(alert_id_str))
+        if alert is None:
+            await query.answer("Alert not found.", show_alert=True)
+            return
+        await session.commit()
+
+    await query.answer("🚫 Alert disabilitato.", show_alert=False)
+    await query.edit_message_reply_markup(reply_markup=None)
