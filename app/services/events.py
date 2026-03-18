@@ -112,4 +112,5 @@ def is_origin_allowed(domain_allowlist: list[str], origin: str | None) -> bool:
     from urllib.parse import urlparse
 
     host = urlparse(origin).netloc or origin
-    return host in domain_allowlist
+    normalized = {urlparse(d).netloc or d for d in domain_allowlist}
+    return host in normalized
