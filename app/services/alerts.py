@@ -113,6 +113,29 @@ async def disable_alert(
     return alert
 
 
+async def list_active_alerts_for_admin(
+    session: AsyncSession,
+    admin_chat_id: int,
+) -> list[tuple[Alert, str]]:
+    """Return all active alerts across all projects owned by *admin_chat_id*.
+
+    Returns a list of ``(alert, project_name)`` tuples ordered by project name
+    then alert creation time.
+    """
+    from app.models.project import Project
+
+    result = await session.execute(
+        select(Alert, Project.name)
+        .join(Project, Alert.project_id == Project.id)
+        .where(
+            Project.admin_chat_id == admin_chat_id,
+            Alert.is_active == True,  # noqa: E712
+        )
+        .order_by(Project.name, Alert.created_at)
+    )
+    return [(row.Alert, row.name) for row in result]
+
+
 async def mute_alert(
     session: AsyncSession,
     alert_id: uuid.UUID,

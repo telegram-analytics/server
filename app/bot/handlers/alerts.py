@@ -16,6 +16,7 @@ from app.services.alerts import (
     delete_alert,
     disable_alert,
     get_alert,
+    list_active_alerts_for_admin,
     list_alerts,
     mute_alert,
     toggle_alert,
@@ -72,6 +73,45 @@ async def show_alerts_menu(query, project_id_str: str, admin_chat_id: int) -> No
         parse_mode="HTML",
         reply_markup=keyboard,
     )
+
+
+async def alerts_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /alerts — list all active alerts across all projects."""
+    assert update.message is not None
+
+    settings = get_settings()
+    admin_chat_id = settings.admin_chat_id
+
+    factory = get_session_factory()
+    async with factory() as session:
+        rows = await list_active_alerts_for_admin(session, admin_chat_id)
+
+    if not rows:
+        await update.message.reply_text("No active alerts.", parse_mode="HTML")
+        return
+
+    # Group by project name
+    by_project: dict[str, list] = {}
+    for alert, project_name in rows:
+        by_project.setdefault(project_name, []).append(alert)
+
+    lines = ["🔔 <b>Active Alerts</b>\n"]
+    for project_name, alerts in by_project.items():
+        lines.append(f"📁 <b>{project_name}</b>")
+        for alert in alerts:
+            if alert.condition == AlertCondition.every:
+                desc = "every occurrence"
+            elif alert.condition == AlertCondition.every_n:
+                desc = f"every {alert.threshold_n} occurrences"
+            else:
+                desc = f">{alert.threshold_n}/day"
+            lines.append(f"  • {alert.event_name} ({desc})")
+        lines.append("")
+
+    total = sum(len(v) for v in by_project.values())
+    lines.append(f"<i>Total: {total} active alert{'s' if total != 1 else ''}</i>")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def alert_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
