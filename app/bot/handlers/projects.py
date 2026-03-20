@@ -57,6 +57,7 @@ async def add_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await session.commit()
 
     base = settings.webhook_base_url.rstrip("/") or "https://your-server.com"
+    env_block = f"TGA_URL={base}\nTGA_API_KEY={api_key}"
     snippet = (
         f"curl -X POST {base}/api/v1/track \\\n"
         f'  -H "Content-Type: application/json" \\\n'
@@ -66,8 +67,8 @@ async def add_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     await update.message.reply_text(
         f"✅ Project <b>{name}</b> created!\n\n"
-        f"🔑 API Key: <code>{api_key}</code>\n\n"
         f"⚠️ Save this key — it won't be shown again.\n\n"
+        f"<b>Env:</b>\n<tg-spoiler><pre>{env_block}</pre></tg-spoiler>\n\n"
         f"<b>Quickstart:</b>\n<pre>{snippet}</pre>",
         parse_mode="HTML",
     )
