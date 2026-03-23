@@ -252,7 +252,7 @@ async def _handle_condition_choice(query, condition: str, admin_chat_id: int) ->
                 prompt = "Enter the threshold (notify when exceeded per day):"
 
             await query.edit_message_text(
-                f"📝 <b>Add Alert</b>\n\n" f"Event: <b>{event_name}</b>\n\n" f"{prompt}",
+                f"📝 <b>Add Alert</b>\n\nEvent: <b>{event_name}</b>\n\n{prompt}",
                 parse_mode="HTML",
             )
 
@@ -425,7 +425,7 @@ async def handle_text_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
                 ]
             )
             await update.message.reply_text(
-                f"✅ Alert created!\n\n" f"Event: <b>{event_name}</b>\n" f"Condition: {desc}",
+                f"✅ Alert created!\n\nEvent: <b>{event_name}</b>\nCondition: {desc}",
                 parse_mode="HTML",
                 reply_markup=keyboard,
             )

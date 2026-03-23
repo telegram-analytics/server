@@ -110,7 +110,7 @@ async def _run_alert_evaluation(
             safe_project = html.escape(project.name)
             for alert in fired:
                 if alert.condition == AlertCondition.every:
-                    msg = f"🔔 Event <b>{safe_event}</b> received " f"on <b>{safe_project}</b>"
+                    msg = f"🔔 Event <b>{safe_event}</b> received on <b>{safe_project}</b>"
                 elif alert.condition == AlertCondition.every_n:
                     msg = (
                         f"🔔 Event <b>{safe_event}</b> received "
