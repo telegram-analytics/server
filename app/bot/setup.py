@@ -90,7 +90,8 @@ async def init_bot(token: str, admin_chat_id: int, webhook_base_url: str = "") -
             allowed_updates=["message", "callback_query"],
             drop_pending_updates=True,
         )
-        logger.info("Webhook registered at %s", webhook_url)
+        masked = token[:8] + "..." if len(token) > 8 else "***"
+        logger.info("Webhook registered at %s/webhook/%s", webhook_base_url.rstrip("/"), masked)
     else:
         logger.info(
             "WEBHOOK_BASE_URL not set — bot is in webhook-only mode "

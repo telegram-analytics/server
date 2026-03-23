@@ -42,15 +42,16 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Allow browsers to make cross-origin requests to the ingestion endpoints.
-    # Fine-grained per-project origin validation is handled in ingestion.py via
-    # the domain_allowlist; CORS middleware just lets the browser proceed past
-    # the preflight check.
+    # CORS allows browsers to make cross-origin requests to the ingestion
+    # endpoints.  Fine-grained per-project origin validation is handled in
+    # ingestion.py via the domain_allowlist; this middleware just lets the
+    # browser proceed past the preflight check.  Methods and headers are
+    # restricted to exactly what the ingestion endpoints need.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["POST"],
+        allow_headers=["Content-Type"],
     )
 
     app.include_router(health_router)

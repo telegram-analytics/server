@@ -4,6 +4,8 @@ Telegram POSTs updates to /webhook/{token}.  The token in the URL acts as a
 shared secret — any request with the wrong token is rejected with 403.
 """
 
+import hmac
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from telegram import Update
 
@@ -20,7 +22,7 @@ async def telegram_webhook(
     settings: Settings = Depends(get_settings),
 ) -> dict:
     """Receive and dispatch a Telegram update."""
-    if token != settings.telegram_bot_token:
+    if not hmac.compare_digest(token, settings.telegram_bot_token):
         raise HTTPException(status_code=403, detail="Invalid webhook token")
 
     data = await request.json()

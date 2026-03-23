@@ -447,8 +447,18 @@ async def _show_silence_picker(query, alert_id_str: str) -> None:
 
 async def _apply_silence(query, alert_id_str: str, hours: int) -> None:
     """Apply a silence period to an alert and confirm in the message."""
+    settings = get_settings()
+    admin_chat_id = settings.admin_chat_id
     factory = get_session_factory()
     async with factory() as session:
+        alert = await get_alert(session, uuid.UUID(alert_id_str))
+        if alert is None:
+            await query.answer("Alert not found.", show_alert=True)
+            return
+        project = await get_project(session, alert.project_id, admin_chat_id)
+        if project is None:
+            await query.answer("Alert not found.", show_alert=True)
+            return
         alert = await mute_alert(session, uuid.UUID(alert_id_str), hours)
         if alert is None:
             await query.answer("Alert not found.", show_alert=True)
@@ -468,8 +478,18 @@ async def _apply_silence(query, alert_id_str: str, hours: int) -> None:
 
 async def _disable_alert_from_notification(query, alert_id_str: str) -> None:
     """Disable an alert from a notification message button."""
+    settings = get_settings()
+    admin_chat_id = settings.admin_chat_id
     factory = get_session_factory()
     async with factory() as session:
+        alert = await get_alert(session, uuid.UUID(alert_id_str))
+        if alert is None:
+            await query.answer("Alert not found.", show_alert=True)
+            return
+        project = await get_project(session, alert.project_id, admin_chat_id)
+        if project is None:
+            await query.answer("Alert not found.", show_alert=True)
+            return
         alert = await disable_alert(session, uuid.UUID(alert_id_str))
         if alert is None:
             await query.answer("Alert not found.", show_alert=True)

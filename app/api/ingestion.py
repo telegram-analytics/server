@@ -5,6 +5,7 @@ Rate limiting:  per-project sliding-window (configurable, default 100 req/s).
 Origin check:   project's domain_allowlist; empty list = allow all.
 """
 
+import html
 import uuid
 from collections import defaultdict, deque
 from time import monotonic
@@ -24,12 +25,34 @@ router = APIRouter(prefix="/api/v1", tags=["ingestion"])
 # ── In-memory per-project rate limiter (sliding 1-second window) ───────────
 
 _rate_windows: dict[str, deque[float]] = defaultdict(deque)
+_rate_last_access: dict[str, float] = {}
+
+# Evict idle projects every N calls to prevent unbounded memory growth.
+_EVICTION_INTERVAL = 500
+_EVICTION_TTL = 60.0  # seconds since last access before eviction
+_rate_call_count = 0
+
+
+def _evict_stale_entries(now: float) -> None:
+    """Remove rate-limiter state for projects idle longer than _EVICTION_TTL."""
+    stale = [k for k, t in _rate_last_access.items() if now - t > _EVICTION_TTL]
+    for k in stale:
+        _rate_windows.pop(k, None)
+        _rate_last_access.pop(k, None)
 
 
 def _is_rate_limited(project_id: uuid.UUID, limit: int) -> bool:
     """Return True if this project has exceeded *limit* requests in the last second."""
+    global _rate_call_count
     key = str(project_id)
     now = monotonic()
+
+    _rate_call_count += 1
+    if _rate_call_count >= _EVICTION_INTERVAL:
+        _rate_call_count = 0
+        _evict_stale_entries(now)
+
+    _rate_last_access[key] = now
     dq = _rate_windows[key]
     cutoff = now - 1.0
     while dq and dq[0] < cutoff:
@@ -98,7 +121,10 @@ async def _run_alert_evaluation(
                     )
 
                 if properties:
-                    lines = [f"<b>{k}:</b> {v}" for k, v in properties.items()]
+                    lines = [
+                        f"<b>{html.escape(str(k))}:</b> {html.escape(str(v))}"
+                        for k, v in properties.items()
+                    ]
                     msg += "\n\n" + "\n".join(lines)
 
                 aid = str(alert.id)

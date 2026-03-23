@@ -5,6 +5,7 @@ These endpoints are only meant to be called by the Telegram bot and
 trusted internal tooling — never exposed to end-users directly.
 """
 
+import hmac
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Security
@@ -26,7 +27,7 @@ async def _require_internal_key(
     settings: Settings = Depends(get_settings),
 ) -> None:
     """Dependency: reject callers without the correct X-Internal-Key."""
-    if not key or key != settings.secret_key:
+    if not key or not hmac.compare_digest(key, settings.secret_key):
         raise HTTPException(status_code=401, detail="Invalid or missing X-Internal-Key")
 
 
