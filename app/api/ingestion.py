@@ -106,18 +106,20 @@ async def _run_alert_evaluation(
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
             bot = get_bot()
+            safe_event = html.escape(event_name)
+            safe_project = html.escape(project.name)
             for alert in fired:
                 if alert.condition == AlertCondition.every:
-                    msg = f"🔔 Event <b>{event_name}</b> received " f"on <b>{project.name}</b>"
+                    msg = f"🔔 Event <b>{safe_event}</b> received " f"on <b>{safe_project}</b>"
                 elif alert.condition == AlertCondition.every_n:
                     msg = (
-                        f"🔔 Event <b>{event_name}</b> received "
-                        f"<b>{alert.threshold_n}</b> times on <b>{project.name}</b>"
+                        f"🔔 Event <b>{safe_event}</b> received "
+                        f"<b>{alert.threshold_n}</b> times on <b>{safe_project}</b>"
                     )
                 else:  # threshold
                     msg = (
-                        f"🔔 Event <b>{event_name}</b> exceeded "
-                        f"<b>{alert.threshold_n}</b> today on <b>{project.name}</b>"
+                        f"🔔 Event <b>{safe_event}</b> exceeded "
+                        f"<b>{alert.threshold_n}</b> today on <b>{safe_project}</b>"
                     )
 
                 if properties:

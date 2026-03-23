@@ -455,14 +455,13 @@ async def _apply_silence(query, alert_id_str: str, hours: int) -> None:
         if alert is None:
             await query.answer("Alert not found.", show_alert=True)
             return
+        # Verify the alert belongs to a project owned by this admin.
         project = await get_project(session, alert.project_id, admin_chat_id)
         if project is None:
             await query.answer("Alert not found.", show_alert=True)
             return
-        alert = await mute_alert(session, uuid.UUID(alert_id_str), hours)
-        if alert is None:
-            await query.answer("Alert not found.", show_alert=True)
-            return
+        # mute_alert re-fetches internally; pass the same ID.
+        await mute_alert(session, alert.id, hours)
         await session.commit()
 
     if hours == 1:
@@ -486,14 +485,13 @@ async def _disable_alert_from_notification(query, alert_id_str: str) -> None:
         if alert is None:
             await query.answer("Alert not found.", show_alert=True)
             return
+        # Verify the alert belongs to a project owned by this admin.
         project = await get_project(session, alert.project_id, admin_chat_id)
         if project is None:
             await query.answer("Alert not found.", show_alert=True)
             return
-        alert = await disable_alert(session, uuid.UUID(alert_id_str))
-        if alert is None:
-            await query.answer("Alert not found.", show_alert=True)
-            return
+        # disable_alert re-fetches internally; pass the same ID.
+        await disable_alert(session, alert.id)
         await session.commit()
 
     await query.answer("🚫 Alert disabilitato.", show_alert=False)
