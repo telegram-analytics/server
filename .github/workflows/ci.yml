@@ -31,6 +31,9 @@ jobs:
       - name: Type-check with mypy
         run: mypy app
 
+      - name: Check OpenAPI spec is up to date
+        run: python scripts/export_openapi.py --check
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

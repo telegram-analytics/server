@@ -5,7 +5,14 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
+from telegram import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    Message,
+    Update,
+)
 from telegram.ext import ContextTypes
 
 from app.bot.states import BotStateService
@@ -140,8 +147,9 @@ async def events_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 # ── Events list ────────────────────────────────────────────────────────────────
 
 
-async def show_events_menu(query, project_id_str: str, admin_chat_id: int) -> None:
+async def show_events_menu(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
     """Query distinct event names for a project and display them as buttons."""
+    assert isinstance(query.message, Message)
     pid = uuid.UUID(project_id_str)
 
     factory = get_session_factory()
@@ -187,8 +195,9 @@ async def show_events_menu(query, project_id_str: str, admin_chat_id: int) -> No
     )
 
 
-async def _show_events_list_from_state(query, admin_chat_id: int) -> None:
+async def _show_events_list_from_state(query: CallbackQuery, admin_chat_id: int) -> None:
     """Re-show events list using project_id stored in conversation state."""
+    assert isinstance(query.message, Message)
     factory = get_session_factory()
     async with factory() as session:
         svc = BotStateService(session)
@@ -209,8 +218,9 @@ async def _show_events_list_from_state(query, admin_chat_id: int) -> None:
 # ── Event detail ───────────────────────────────────────────────────────────────
 
 
-async def _show_event_detail(query, event_name: str, admin_chat_id: int) -> None:
+async def _show_event_detail(query: CallbackQuery, event_name: str, admin_chat_id: int) -> None:
     """Show stats and action buttons for a specific event."""
+    assert isinstance(query.message, Message)
     factory = get_session_factory()
     async with factory() as session:
         svc = BotStateService(session)
@@ -286,8 +296,9 @@ async def _show_event_detail(query, event_name: str, admin_chat_id: int) -> None
 # ── Actions ────────────────────────────────────────────────────────────────────
 
 
-async def _start_alert_for_event(query, admin_chat_id: int) -> None:
+async def _start_alert_for_event(query: CallbackQuery, admin_chat_id: int) -> None:
     """Transition to the add_alert flow, pre-filled with the selected event name."""
+    assert isinstance(query.message, Message)
     factory = get_session_factory()
     async with factory() as session:
         svc = BotStateService(session)
@@ -335,9 +346,10 @@ async def _start_alert_for_event(query, admin_chat_id: int) -> None:
 
 
 async def _send_event_chart(
-    query, admin_chat_id: int, period: str = "7d", gran: str = "day"
+    query: CallbackQuery, admin_chat_id: int, period: str = "7d", gran: str = "day"
 ) -> None:
     """Generate and send a line chart for the selected event as a new photo reply."""
+    assert isinstance(query.message, Message)
     factory = get_session_factory()
     async with factory() as session:
         svc = BotStateService(session)
@@ -413,8 +425,11 @@ async def _send_event_chart(
     )
 
 
-async def _update_event_chart(query, admin_chat_id: int, period: str, gran: str) -> None:
+async def _update_event_chart(
+    query: CallbackQuery, admin_chat_id: int, period: str, gran: str
+) -> None:
     """Edit the existing event chart photo in-place with a new period/granularity."""
+    assert isinstance(query.message, Message)
     factory = get_session_factory()
     async with factory() as session:
         svc = BotStateService(session)
@@ -475,8 +490,11 @@ async def _update_event_chart(query, admin_chat_id: int, period: str, gran: str)
     )
 
 
-async def _send_event_comparison(query, admin_chat_id: int, period: str, gran: str) -> None:
+async def _send_event_comparison(
+    query: CallbackQuery, admin_chat_id: int, period: str, gran: str
+) -> None:
     """Edit the event chart photo to show current vs prior period comparison."""
+    assert isinstance(query.message, Message)
     factory = get_session_factory()
     async with factory() as session:
         svc = BotStateService(session)

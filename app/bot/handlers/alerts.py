@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import uuid
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, Update
 from telegram.ext import ContextTypes
 
 from app.bot.states import BotStateService
 from app.core.config import get_settings
 from app.core.database import get_session_factory
-from app.models.alert import AlertCondition
+from app.models.alert import Alert, AlertCondition
 from app.services.alerts import (
     create_alert,
     delete_alert,
@@ -24,7 +24,7 @@ from app.services.alerts import (
 from app.services.projects import get_project
 
 
-def _format_alert_label(alert) -> str:
+def _format_alert_label(alert: Alert) -> str:
     """Format an alert for display in the list."""
     status = "✅" if alert.is_active else "⏸️"
     if alert.condition == AlertCondition.every:
@@ -35,7 +35,7 @@ def _format_alert_label(alert) -> str:
         return f"{status} {alert.event_name} (>{alert.threshold_n}/day)"
 
 
-async def show_alerts_menu(query, project_id_str: str, admin_chat_id: int) -> None:
+async def show_alerts_menu(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
     """Display the alerts list for a project with action buttons."""
     factory = get_session_factory()
     async with factory() as session:
@@ -91,7 +91,7 @@ async def alerts_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     # Group by project name
-    by_project: dict[str, list] = {}
+    by_project: dict[str, list[Alert]] = {}
     for alert, project_name in rows:
         by_project.setdefault(project_name, []).append(alert)
 
@@ -164,8 +164,9 @@ async def alert_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         await show_alerts_menu(query, project_id_str, admin_chat_id)
 
 
-async def _start_add_alert(query, project_id_str: str) -> None:
+async def _start_add_alert(query: CallbackQuery, project_id_str: str) -> None:
     """Start the add-alert conversation flow."""
+    assert isinstance(query.message, Message)
     chat_id = query.message.chat_id
 
     factory = get_session_factory()
@@ -187,8 +188,11 @@ async def _start_add_alert(query, project_id_str: str) -> None:
     )
 
 
-async def _handle_condition_choice(query, condition: str, admin_chat_id: int) -> None:
+async def _handle_condition_choice(
+    query: CallbackQuery, condition: str, admin_chat_id: int
+) -> None:
     """Handle condition button click during add-alert flow."""
+    assert isinstance(query.message, Message)
     chat_id = query.message.chat_id
 
     factory = get_session_factory()
@@ -257,7 +261,7 @@ async def _handle_condition_choice(query, condition: str, admin_chat_id: int) ->
             )
 
 
-async def _delete_alert(query, alert_id_str: str, admin_chat_id: int) -> None:
+async def _delete_alert(query: CallbackQuery, alert_id_str: str, admin_chat_id: int) -> None:
     """Delete an alert and refresh the list."""
     factory = get_session_factory()
     async with factory() as session:
@@ -278,7 +282,7 @@ async def _delete_alert(query, alert_id_str: str, admin_chat_id: int) -> None:
     await show_alerts_menu(query, project_id_str, admin_chat_id)
 
 
-async def _toggle_alert(query, alert_id_str: str, admin_chat_id: int) -> None:
+async def _toggle_alert(query: CallbackQuery, alert_id_str: str, admin_chat_id: int) -> None:
     """Toggle an alert's active status and refresh the list."""
     factory = get_session_factory()
     async with factory() as session:
@@ -385,16 +389,19 @@ async def handle_text_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
                 return
 
             project_id_str = payload.get("project_id")
-            event_name = payload.get("event_name")
+            event_name_val: str | None = payload.get("event_name")
             condition_str = payload.get("condition")
 
-            if not all([project_id_str, event_name, condition_str]):
+            if not all([project_id_str, event_name_val, condition_str]):
                 await svc.clear(chat_id)
                 await session.commit()
                 await update.message.reply_text(
                     "❌ Invalid state. Please start again from the Alerts menu."
                 )
                 return
+
+            assert project_id_str is not None
+            assert event_name_val is not None
 
             condition = (
                 AlertCondition.every_n if condition_str == "every_n" else AlertCondition.threshold
@@ -403,7 +410,7 @@ async def handle_text_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
             await create_alert(
                 session,
                 project_id=uuid.UUID(project_id_str),
-                event_name=event_name,
+                event_name=event_name_val,
                 condition=condition,
                 threshold_n=threshold_n,
             )
@@ -425,13 +432,13 @@ async def handle_text_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
                 ]
             )
             await update.message.reply_text(
-                f"✅ Alert created!\n\nEvent: <b>{event_name}</b>\nCondition: {desc}",
+                f"✅ Alert created!\n\nEvent: <b>{event_name_val}</b>\nCondition: {desc}",
                 parse_mode="HTML",
                 reply_markup=keyboard,
             )
 
 
-async def _show_silence_picker(query, alert_id_str: str) -> None:
+async def _show_silence_picker(query: CallbackQuery, alert_id_str: str) -> None:
     """Show duration picker for silencing an alert from a notification message."""
     keyboard = InlineKeyboardMarkup(
         [
@@ -445,7 +452,7 @@ async def _show_silence_picker(query, alert_id_str: str) -> None:
     await query.edit_message_reply_markup(reply_markup=keyboard)
 
 
-async def _apply_silence(query, alert_id_str: str, hours: int) -> None:
+async def _apply_silence(query: CallbackQuery, alert_id_str: str, hours: int) -> None:
     """Apply a silence period to an alert and confirm in the message."""
     settings = get_settings()
     admin_chat_id = settings.admin_chat_id
@@ -475,7 +482,7 @@ async def _apply_silence(query, alert_id_str: str, hours: int) -> None:
     await query.edit_message_reply_markup(reply_markup=None)
 
 
-async def _disable_alert_from_notification(query, alert_id_str: str) -> None:
+async def _disable_alert_from_notification(query: CallbackQuery, alert_id_str: str) -> None:
     """Disable an alert from a notification message button."""
     settings = get_settings()
     admin_chat_id = settings.admin_chat_id

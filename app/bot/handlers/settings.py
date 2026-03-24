@@ -6,10 +6,12 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy import update as sql_update
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from sqlalchemy.ext.asyncio import AsyncSession
+from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, Update
 
 from app.bot.states import BotStateService
 from app.core.database import get_session_factory
+from app.models.bot_conversation_state import BotConversationState
 from app.models.project import Project
 from app.models.settings import ProjectSettings
 from app.services.projects import get_project
@@ -17,7 +19,7 @@ from app.services.projects import get_project
 # ── Menu display ──────────────────────────────────────────────────────────────
 
 
-async def show_settings_menu(query, project_id_str: str, admin_chat_id: int) -> None:
+async def show_settings_menu(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
     """Display current project settings with edit buttons."""
     pid = uuid.UUID(project_id_str)
 
@@ -60,8 +62,11 @@ async def show_settings_menu(query, project_id_str: str, admin_chat_id: int) -> 
 # ── Flow starters (callback → conversation state) ─────────────────────────────
 
 
-async def start_set_retention(query, project_id_str: str, admin_chat_id: int) -> None:
+async def start_set_retention(
+    query: CallbackQuery, project_id_str: str, admin_chat_id: int
+) -> None:
     """Kick off the retention-days conversation flow."""
+    assert isinstance(query.message, Message)
     chat_id = query.message.chat_id
 
     factory = get_session_factory()
@@ -84,8 +89,11 @@ async def start_set_retention(query, project_id_str: str, admin_chat_id: int) ->
     )
 
 
-async def start_set_allowlist(query, project_id_str: str, admin_chat_id: int) -> None:
+async def start_set_allowlist(
+    query: CallbackQuery, project_id_str: str, admin_chat_id: int
+) -> None:
     """Kick off the domain-allowlist conversation flow."""
+    assert isinstance(query.message, Message)
     chat_id = query.message.chat_id
 
     factory = get_session_factory()
@@ -117,8 +125,9 @@ async def start_set_allowlist(query, project_id_str: str, admin_chat_id: int) ->
     )
 
 
-async def handle_allow_all(query, project_id_str: str, admin_chat_id: int) -> None:
+async def handle_allow_all(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
     """Clear the domain allowlist (allow all origins) via button callback."""
+    assert isinstance(query.message, Message)
     chat_id = query.message.chat_id
 
     try:
@@ -148,8 +157,12 @@ async def handle_allow_all(query, project_id_str: str, admin_chat_id: int) -> No
 # ── Text-message handlers (called from alerts.handle_text_message) ────────────
 
 
-async def handle_set_retention_text(update, session, svc, state) -> None:
+async def handle_set_retention_text(
+    update: Update, session: AsyncSession, svc: BotStateService, state: BotConversationState
+) -> None:
     """Process the user's retention-days input."""
+    assert update.effective_chat is not None
+    assert update.message is not None
     chat_id = update.effective_chat.id
     text = (update.message.text or "").strip()
 
@@ -189,8 +202,12 @@ async def handle_set_retention_text(update, session, svc, state) -> None:
     )
 
 
-async def handle_set_allowlist_text(update, session, svc, state) -> None:
+async def handle_set_allowlist_text(
+    update: Update, session: AsyncSession, svc: BotStateService, state: BotConversationState
+) -> None:
     """Process the user's domain-allowlist input."""
+    assert update.effective_chat is not None
+    assert update.message is not None
     chat_id = update.effective_chat.id
     raw = (update.message.text or "").strip()
 

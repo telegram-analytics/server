@@ -5,11 +5,16 @@ Rate limiting:  per-project sliding-window (configurable, default 100 req/s).
 Origin check:   project's domain_allowlist; empty list = allow all.
 """
 
+from __future__ import annotations
+
 import html
 import uuid
 from collections import defaultdict, deque
 from time import monotonic
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.models.project import Project
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -164,7 +169,7 @@ async def _resolve_project(
     origin: str | None,
     session: AsyncSession,
     rate_limit: int,
-):
+) -> Project:
     """Validate API key, rate limit, and origin. Returns the Project."""
     project = await validate_api_key(api_key, session)
     if project is None:
@@ -189,7 +194,7 @@ async def track(
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
-) -> dict:
+) -> dict[str, str]:
     """Ingest a custom event.
 
     Returns 202 immediately; alert evaluation runs as a background task.
@@ -218,7 +223,7 @@ async def pageview(
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
-) -> dict:
+) -> dict[str, str]:
     """Ingest a pageview event.
 
     Forces ``event_name = "pageview"`` and stores url/referrer in dedicated

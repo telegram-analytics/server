@@ -99,7 +99,7 @@ async def run_retention_cron(session: AsyncSession) -> int:
                 Event.received_at < cutoff,
             )
         )
-        total_deleted += result.rowcount  # type: ignore[operator]
+        total_deleted += result.rowcount  # type: ignore[attr-defined]
 
     await session.flush()
     return total_deleted

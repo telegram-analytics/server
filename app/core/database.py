@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -14,7 +15,7 @@ class Base(DeclarativeBase):
     """Shared declarative base for all ORM models."""
 
 
-def build_engine(database_url: str):  # type: ignore[no-untyped-def]
+def build_engine(database_url: str) -> AsyncEngine:
     """Create an async SQLAlchemy engine from the given URL.
 
     ``echo=False`` in production; tests may override via ``database_url``.
@@ -26,7 +27,7 @@ def build_engine(database_url: str):  # type: ignore[no-untyped-def]
     )
 
 
-def build_session_factory(engine) -> async_sessionmaker[AsyncSession]:  # type: ignore[type-arg]
+def build_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     """Return an ``async_sessionmaker`` bound to *engine*."""
     return async_sessionmaker(engine, expire_on_commit=False)
 

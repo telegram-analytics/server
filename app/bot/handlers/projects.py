@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from app.bot.handlers.alerts import show_alerts_menu
@@ -212,7 +212,7 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 # ── Private helpers ────────────────────────────────────────────────────────────
 
 
-async def _show_projects_list(query, admin_chat_id: int) -> None:
+async def _show_projects_list(query: CallbackQuery, admin_chat_id: int) -> None:
     """Re-display the projects list via callback (for « Back button)."""
     factory = get_session_factory()
     async with factory() as session:
@@ -231,7 +231,7 @@ async def _show_projects_list(query, admin_chat_id: int) -> None:
     await query.edit_message_text("Select a project:", reply_markup=keyboard)
 
 
-async def _show_project_menu(query, project_id_str: str, admin_chat_id: int) -> None:
+async def _show_project_menu(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
     factory = get_session_factory()
     async with factory() as session:
         project = await get_project(session, uuid.UUID(project_id_str), admin_chat_id)
@@ -268,7 +268,7 @@ async def _show_project_menu(query, project_id_str: str, admin_chat_id: int) -> 
     )
 
 
-async def _ask_delete_confirmation(query, project_id_str: str) -> None:
+async def _ask_delete_confirmation(query: CallbackQuery, project_id_str: str) -> None:
     keyboard = InlineKeyboardMarkup(
         [
             [
@@ -286,7 +286,7 @@ async def _ask_delete_confirmation(query, project_id_str: str) -> None:
     )
 
 
-async def _confirm_delete(query, project_id_str: str, admin_chat_id: int) -> None:
+async def _confirm_delete(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
     factory = get_session_factory()
     async with factory() as session:
         deleted = await delete_project(session, uuid.UUID(project_id_str), admin_chat_id)

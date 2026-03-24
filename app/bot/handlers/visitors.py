@@ -10,7 +10,8 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from sqlalchemy.ext.asyncio import AsyncSession
+from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.constants import PERIOD_LABEL, PERIODS
 from app.core.config import get_settings
@@ -63,7 +64,7 @@ def _visitors_keyboard(project_id_str: str, period: str) -> InlineKeyboardMarkup
 
 
 async def _build_visitors_text(
-    session,
+    session: AsyncSession,
     project_id: uuid.UUID,
     project_name: str,
     period: str,
@@ -107,7 +108,7 @@ async def _build_visitors_text(
 
 
 async def show_visitors_menu(
-    query, project_id_str: str, admin_chat_id: int, period: str = "7d"
+    query: CallbackQuery, project_id_str: str, admin_chat_id: int, period: str = "7d"
 ) -> None:
     """Show visitor breakdown text with period and chart buttons."""
     pid = uuid.UUID(project_id_str)
@@ -129,20 +130,21 @@ async def show_visitors_menu(
 
 
 async def update_visitors_period(
-    query, project_id_str: str, admin_chat_id: int, period: str
+    query: CallbackQuery, project_id_str: str, admin_chat_id: int, period: str
 ) -> None:
     """Re-render visitors text with a different period."""
     await show_visitors_menu(query, project_id_str, admin_chat_id, period)
 
 
 async def send_visitors_chart(
-    query,
+    query: CallbackQuery,
     project_id_str: str,
     admin_chat_id: int,
     dimension: str,
     period: str,
 ) -> None:
     """Send a bar chart for a single visitor dimension."""
+    assert isinstance(query.message, Message)
     if dimension not in _DIM_KEYS:
         await query.answer("Unknown dimension.", show_alert=True)
         return

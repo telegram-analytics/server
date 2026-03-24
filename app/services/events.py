@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy import func, select
@@ -17,7 +18,7 @@ async def insert_event(
     project_id: uuid.UUID,
     event_name: str,
     session_id: str,
-    properties: dict,
+    properties: dict[str, Any],
     timestamp: datetime | None = None,
     url: str | None = None,
     referrer: str | None = None,

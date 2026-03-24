@@ -12,7 +12,15 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
+from sqlalchemy.ext.asyncio import AsyncSession
+from telegram import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    Message,
+    Update,
+)
 from telegram.ext import ContextTypes
 
 from app.bot.constants import PERIOD_LABEL, PERIODS
@@ -70,7 +78,7 @@ def _report_chart_keyboard(project_id_str: str, period: str, gran: str) -> Inlin
 
 
 async def _get_top_event_data(
-    session,
+    session: AsyncSession,
     project_id: uuid.UUID,
     period: str,
     gran: str,
@@ -115,7 +123,7 @@ async def _get_top_event_data(
 # ── Public handlers ────────────────────────────────────────────────────────────
 
 
-async def show_reports_menu(query, project_id_str: str, admin_chat_id: int) -> None:
+async def show_reports_menu(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
     """Show a 7-day analytics text summary for the project."""
     pid = uuid.UUID(project_id_str)
     now = datetime.now(UTC)
@@ -177,7 +185,7 @@ async def show_reports_menu(query, project_id_str: str, admin_chat_id: int) -> N
 
 
 async def send_chart_photo(
-    query,
+    query: CallbackQuery,
     project_id_str: str,
     admin_chat_id: int,
     period: str = "7d",
@@ -188,6 +196,7 @@ async def send_chart_photo(
     Called when the user first opens the chart from the report menu.
     Attaches period-switching and comparison buttons to the photo.
     """
+    assert isinstance(query.message, Message)
     pid = uuid.UUID(project_id_str)
     now = datetime.now(UTC)
     settings = get_settings()
@@ -249,7 +258,7 @@ async def send_chart_photo(
 
 
 async def update_report_chart(
-    query,
+    query: CallbackQuery,
     project_id_str: str,
     admin_chat_id: int,
     period: str,
@@ -296,7 +305,7 @@ async def update_report_chart(
 
 
 async def send_report_comparison(
-    query,
+    query: CallbackQuery,
     project_id_str: str,
     admin_chat_id: int,
     period: str,
@@ -460,8 +469,11 @@ async def report_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         )
 
 
-async def handle_report_project_pick(query, project_id_str: str, admin_chat_id: int, ctx) -> None:
+async def handle_report_project_pick(
+    query: CallbackQuery, project_id_str: str, admin_chat_id: int, ctx: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Handle rpt_pp: callback — user picked a project after /report <event>."""
+    assert isinstance(query.message, Message)
     event_name: str | None = (ctx.user_data or {}).get("report_event")
     if not event_name:
         await query.edit_message_text("❌ Session expired. Use /report again.")
@@ -528,7 +540,7 @@ async def handle_report_project_pick(query, project_id_str: str, admin_chat_id: 
 
 
 async def _send_report_chart_as_message(
-    message, project_id_str: str, project_name: str, event_name: str
+    message: Message, project_id_str: str, project_name: str, event_name: str
 ) -> None:
     """Send a chart photo as a direct reply to a command message (not a callback)."""
     pid = uuid.UUID(project_id_str)

@@ -8,6 +8,7 @@ WEBHOOK_BASE_URL is configured.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from telegram import Bot
 from telegram.ext import (
@@ -21,10 +22,10 @@ from telegram.ext import (
 
 logger = logging.getLogger(__name__)
 
-_application: Application | None = None
+_application: Application[Any, Any, Any, Any, Any, Any] | None = None
 
 
-def build_application(token: str, admin_chat_id: int) -> Application:
+def build_application(token: str, admin_chat_id: int) -> Application[Any, Any, Any, Any, Any, Any]:
     """Build an Application with all handlers registered.
 
     Uses ``updater=None`` so updates arrive via the webhook endpoint, not
@@ -65,7 +66,7 @@ def build_application(token: str, admin_chat_id: int) -> Application:
     return app
 
 
-def get_application() -> Application:
+def get_application() -> Application[Any, Any, Any, Any, Any, Any]:
     """Return the running Application singleton."""
     if _application is None:
         raise RuntimeError("Bot application not initialised. Call init_bot() first.")
@@ -73,7 +74,9 @@ def get_application() -> Application:
 
 
 def get_bot() -> Bot:
-    return get_application().bot
+    bot = get_application().bot
+    assert isinstance(bot, Bot)
+    return bot
 
 
 async def init_bot(token: str, admin_chat_id: int, webhook_base_url: str = "") -> None:

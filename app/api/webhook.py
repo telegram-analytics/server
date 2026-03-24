@@ -20,7 +20,7 @@ async def telegram_webhook(
     token: str,
     request: Request,
     settings: Settings = Depends(get_settings),
-) -> dict:
+) -> dict[str, bool]:
     """Receive and dispatch a Telegram update."""
     if not hmac.compare_digest(token, settings.telegram_bot_token):
         raise HTTPException(status_code=403, detail="Invalid webhook token")
