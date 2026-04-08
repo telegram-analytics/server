@@ -472,7 +472,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
+                  "additionalProperties": {
+                    "type": "string"
+                  },
                   "title": "Response Pageview Api V1 Pageview Post",
                   "type": "object"
                 }
@@ -516,7 +518,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
+                  "additionalProperties": {
+                    "type": "string"
+                  },
                   "title": "Response Track Api V1 Track Post",
                   "type": "object"
                 }
