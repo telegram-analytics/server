@@ -58,8 +58,9 @@ async def generate_line_chart(
                     "borderColor": _LINE_COLOR,
                     "backgroundColor": "rgba(99,102,241,0.1)",
                     "fill": True,
-                    "tension": 0.3,
-                    "pointRadius": 3,
+                    "tension": 0,
+                    "pointRadius": 4,
+                    "pointBackgroundColor": _LINE_COLOR,
                 }
             ],
         },
@@ -68,7 +69,12 @@ async def generate_line_chart(
                 "title": {"display": True, "text": f"{title} — {period_label}"},
                 "legend": {"display": False},
             },
-            "scales": {"y": {"beginAtZero": True}},
+            "scales": {
+                "y": {
+                    "beginAtZero": True,
+                    "ticks": {"precision": 0},
+                },
+            },
         },
     }
     return await _post_chart(config, quickchart_url)
@@ -99,23 +105,30 @@ async def generate_comparison_chart(
                     "label": label_a,
                     "data": [r["count"] for r in data_a],
                     "borderColor": _LINE_COLOR,
+                    "pointBackgroundColor": _LINE_COLOR,
                     "fill": False,
-                    "tension": 0.3,
-                    "pointRadius": 3,
+                    "tension": 0,
+                    "pointRadius": 4,
                 },
                 {
                     "label": label_b,
                     "data": [r["count"] for r in data_b],
                     "borderColor": _LINE_COLOR_2,
+                    "pointBackgroundColor": _LINE_COLOR_2,
                     "fill": False,
-                    "tension": 0.3,
-                    "pointRadius": 3,
+                    "tension": 0,
+                    "pointRadius": 4,
                 },
             ],
         },
         "options": {
             "plugins": {"legend": {"display": True}},
-            "scales": {"y": {"beginAtZero": True}},
+            "scales": {
+                "y": {
+                    "beginAtZero": True,
+                    "ticks": {"precision": 0},
+                },
+            },
         },
     }
     return await _post_chart(config, quickchart_url)
