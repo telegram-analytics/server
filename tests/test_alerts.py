@@ -7,6 +7,8 @@ CallbackQuery objects with MagicMock/AsyncMock, handlers called directly.
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from telegram import Message
+
 from app.models.alert import AlertCondition
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -34,6 +36,7 @@ def _make_callback(chat_id: int = ADMIN_ID, data: str = "alert_add:some-uuid"):
     update.effective_user.id = chat_id
     update.effective_chat.id = chat_id
     update.callback_query.data = data
+    update.callback_query.message = MagicMock(spec=Message)
     update.callback_query.message.chat_id = chat_id
     update.callback_query.answer = AsyncMock()
     update.callback_query.edit_message_text = AsyncMock()

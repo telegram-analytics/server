@@ -103,7 +103,7 @@ async def test_track_received_at_is_server_time(api_client, db_session):
     data = await _create_project(api_client, name="recv-at.com")
     session_id = str(uuid.uuid4())
     before = datetime.now(UTC)
-    await api_client.post(
+    resp = await api_client.post(
         "/api/v1/track",
         json={
             "api_key": data["api_key"],
@@ -113,6 +113,9 @@ async def test_track_received_at_is_server_time(api_client, db_session):
         },
     )
     after = datetime.now(UTC)
+    assert resp.status_code == 202
+    # Ensure we see committed data from the API's separate connection
+    await db_session.invalidate()
     result = await db_session.execute(select(Event).where(Event.session_id == session_id))
     event = result.scalar_one()
     # timestamp should be 2020-01-01

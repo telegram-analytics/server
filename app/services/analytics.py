@@ -114,6 +114,8 @@ async def events_over_time(
         .order_by(bucket_col)
     )
     rows = [{"bucket": row.bucket, "count": row.count} for row in result]
+    if not rows:
+        return []
     return _zero_fill(rows, start, end, granularity)
 
 
