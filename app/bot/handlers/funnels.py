@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from telegram import (
     CallbackQuery,
@@ -227,7 +228,9 @@ async def handle_funnel_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     return True
 
 
-def _event_picker_keyboard(events: list[dict], selected: list[str]) -> InlineKeyboardMarkup:
+def _event_picker_keyboard(
+    events: list[dict[str, Any]], selected: list[str]
+) -> InlineKeyboardMarkup:
     """Build keyboard with available events and a Done button."""
     rows: list[list[InlineKeyboardButton]] = []
     for evt in events:
