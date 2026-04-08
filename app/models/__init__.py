@@ -9,6 +9,7 @@ from app.models.aggregation import Aggregation, AggregationPeriod
 from app.models.alert import Alert, AlertCondition
 from app.models.bot_conversation_state import BotConversationState
 from app.models.event import Event
+from app.models.funnel import Funnel
 from app.models.project import Project
 from app.models.scheduled_report import ChartPeriod, ReportFrequency, ScheduledReport
 from app.models.settings import ProjectSettings
@@ -20,6 +21,7 @@ __all__ = [
     "AggregationPeriod",
     "Alert",
     "AlertCondition",
+    "Funnel",
     "ScheduledReport",
     "ReportFrequency",
     "ChartPeriod",

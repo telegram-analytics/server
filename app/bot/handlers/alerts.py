@@ -339,6 +339,12 @@ async def handle_text_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
             await session.commit()
             return
 
+        if state.flow == "add_funnel":
+            from app.bot.handlers.funnels import handle_funnel_text
+
+            await handle_funnel_text(update, ctx)
+            return
+
         if state.flow != "add_alert":
             return
 

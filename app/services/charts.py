@@ -187,6 +187,69 @@ async def generate_bar_chart(
     return await _post_chart(config, quickchart_url)
 
 
+_FUNNEL_COLORS = [
+    "rgba(99, 102, 241, 1.0)",  # indigo-500 (full)
+    "rgba(99, 102, 241, 0.80)",
+    "rgba(99, 102, 241, 0.60)",
+    "rgba(99, 102, 241, 0.45)",
+    "rgba(99, 102, 241, 0.30)",
+    "rgba(99, 102, 241, 0.20)",
+]
+
+
+async def generate_funnel_chart(
+    data: list[dict[str, Any]],
+    *,
+    title: str,
+    quickchart_url: str = "http://quickchart:3400",
+) -> bytes:
+    """Generate a vertical bar chart for funnel analysis.
+
+    *data* is a list of ``{"step": str, "count": int}`` dicts.
+
+    Raises ``ChartGenerationError`` if QuickChart is unavailable.
+    """
+    first_count = data[0]["count"] if data else 1
+    labels = []
+    for i, row in enumerate(data):
+        pct = round(row["count"] / first_count * 100) if first_count else 0
+        labels.append(f"{row['step']} ({pct}%)" if i > 0 else row["step"])
+    values = [row["count"] for row in data]
+    colors = [_FUNNEL_COLORS[i % len(_FUNNEL_COLORS)] for i in range(len(data))]
+
+    config: dict[str, Any] = {
+        "type": "bar",
+        "data": {
+            "labels": labels,
+            "datasets": [
+                {
+                    "data": values,
+                    "backgroundColor": colors,
+                }
+            ],
+        },
+        "options": {
+            "plugins": {
+                "title": {"display": True, "text": title},
+                "legend": {"display": False},
+                "datalabels": {
+                    "display": True,
+                    "anchor": "end",
+                    "align": "top",
+                    "font": {"weight": "bold"},
+                },
+            },
+            "scales": {
+                "y": {
+                    "beginAtZero": True,
+                    "ticks": {"precision": 0},
+                },
+            },
+        },
+    }
+    return await _post_chart(config, quickchart_url)
+
+
 async def _post_chart(config: dict[str, Any], quickchart_url: str) -> bytes:
     """POST *config* to QuickChart and return the PNG response body."""
     payload = {

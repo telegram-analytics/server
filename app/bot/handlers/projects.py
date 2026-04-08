@@ -10,6 +10,7 @@ from telegram.ext import ContextTypes
 from app.bot.constants import escape_photo
 from app.bot.handlers.alerts import show_alerts_menu
 from app.bot.handlers.events import show_events_menu
+from app.bot.handlers.funnels import show_funnels_menu
 from app.bot.handlers.reports import (
     handle_report_project_pick,
     send_chart_photo,
@@ -164,6 +165,10 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         project_id_str = data[7:]
         await handle_report_project_pick(query, project_id_str, admin_chat_id, ctx)
 
+    elif data.startswith("menu:funnels:"):
+        project_id_str = data[13:]
+        await show_funnels_menu(await escape_photo(query), project_id_str, admin_chat_id)
+
     elif data.startswith("menu:visitors:"):
         project_id_str = data[14:]
         await show_visitors_menu(await escape_photo(query), project_id_str, admin_chat_id)
@@ -256,10 +261,11 @@ async def _show_project_menu(query: CallbackQuery, project_id_str: str, admin_ch
                 InlineKeyboardButton("🔔 Alerts", callback_data=f"menu:alerts:{project_id_str}"),
             ],
             [
+                InlineKeyboardButton("🔀 Funnels", callback_data=f"menu:funnels:{project_id_str}"),
                 InlineKeyboardButton("⚙️ Settings", callback_data=f"menu:settings:{project_id_str}"),
-                InlineKeyboardButton("🗑 Delete", callback_data=f"del_ask:{project_id_str}"),
             ],
             [
+                InlineKeyboardButton("🗑 Delete", callback_data=f"del_ask:{project_id_str}"),
                 InlineKeyboardButton("« Back", callback_data="back:projects"),
             ],
         ]

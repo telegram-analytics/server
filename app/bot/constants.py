@@ -16,6 +16,20 @@ PERIOD_LABEL: dict[str, str] = {
     "90d": "last 90 days",
 }
 
+TIME_WINDOWS: dict[str, int] = {
+    "5min": 300,
+    "1h": 3600,
+    "24h": 86400,
+    "7d": 604800,
+}
+
+TIME_WINDOW_LABEL: dict[str, str] = {
+    "5min": "5 minutes",
+    "1h": "1 hour",
+    "24h": "24 hours",
+    "7d": "7 days",
+}
+
 
 async def escape_photo(query: CallbackQuery) -> CallbackQuery:
     """If the callback originates from a photo message, delete it and replace
