@@ -3,6 +3,8 @@
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from telegram import Message
+
 ADMIN_ID = 111
 
 
@@ -90,6 +92,7 @@ async def test_start_set_retention_saves_state(db_session, session_factory):
         pid = str(project.id)
 
     query = MagicMock()
+    query.message = MagicMock(spec=Message)
     query.message.chat_id = ADMIN_ID
     query.edit_message_text = AsyncMock()
 
@@ -267,6 +270,7 @@ async def test_allow_all_button_clears_allowlist(db_session, session_factory):
         await session.commit()
 
     query = MagicMock()
+    query.message = MagicMock(spec=Message)
     query.message.chat_id = ADMIN_ID
     query.edit_message_text = AsyncMock()
 

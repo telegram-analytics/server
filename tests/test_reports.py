@@ -4,6 +4,8 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from telegram import Message
+
 ADMIN_ID = 111
 
 
@@ -131,6 +133,7 @@ async def test_send_chart_photo_no_data(db_session, session_factory):
 
     query = MagicMock()
     query.edit_message_text = AsyncMock()
+    query.message = MagicMock(spec=Message)
     query.message.reply_photo = AsyncMock()
 
     with (
@@ -170,6 +173,7 @@ async def test_send_chart_photo_quickchart_unavailable(db_session, session_facto
 
     query = MagicMock()
     query.edit_message_text = AsyncMock()
+    query.message = MagicMock(spec=Message)
     query.message.reply_photo = AsyncMock()
 
     with (
@@ -210,6 +214,7 @@ async def test_send_chart_photo_success(db_session, session_factory):
 
     query = MagicMock()
     query.edit_message_text = AsyncMock()
+    query.message = MagicMock(spec=Message)
     query.message.reply_photo = AsyncMock()
 
     fake_png = b"\x89PNG\r\n\x1a\nfakepng"

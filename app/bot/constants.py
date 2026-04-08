@@ -38,8 +38,7 @@ async def escape_photo(query: CallbackQuery) -> CallbackQuery:
 
     Returns *query* unchanged when the message is already a text message.
     """
-    assert isinstance(query.message, Message)
-    if not query.message.photo:
+    if not isinstance(query.message, Message) or not query.message.photo:
         return query
     chat_id = query.message.chat_id
     await query.message.delete()

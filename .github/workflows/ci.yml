@@ -68,9 +68,14 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      - name: Run migrations
+        env:
+          DATABASE_URL: "postgresql+asyncpg://tga:testpassword@localhost/tganalytics_test"
+        run: alembic upgrade head
+
       - name: Run tests
         env:
-          TELEGRAM_BOT_TOKEN: "1234567890:test-token-ci"
+          TELEGRAM_BOT_TOKEN: "1234567890:test-token-for-testing-only"
           ADMIN_CHAT_ID: "123456789"
           DATABASE_URL: "postgresql+asyncpg://tga:testpassword@localhost/tganalytics_test"
           SECRET_KEY: "ci-secret-key-not-for-production"

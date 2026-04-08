@@ -11,6 +11,8 @@ DB-touching tests use ``db_session`` (for direct queries) together with
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from telegram import Message
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 ADMIN_ID = 111
@@ -37,6 +39,9 @@ def _make_callback(chat_id: int = ADMIN_ID, data: str = "proj:some-uuid"):
     update.callback_query.data = data
     update.callback_query.answer = AsyncMock()
     update.callback_query.edit_message_text = AsyncMock()
+    update.callback_query.message = MagicMock(spec=Message)
+    update.callback_query.message.photo = ()  # text message, no photo
+    update.callback_query.message.chat_id = chat_id
     ctx = MagicMock()
     return update, ctx
 
