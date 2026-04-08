@@ -6,13 +6,60 @@ historical periods — that routing layer is added in Phase 4's query router.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event import Event
+
+
+def _zero_fill(
+    rows: list[dict[str, Any]],
+    start: datetime,
+    end: datetime,
+    granularity: str,
+) -> list[dict[str, Any]]:
+    """Insert zero-count entries for missing buckets so charts show gaps."""
+    if granularity == "hour":
+        step = timedelta(hours=1)
+    elif granularity == "week":
+        step = timedelta(weeks=1)
+    elif granularity == "month":
+        # approximate; good enough for iteration
+        step = timedelta(days=30)
+    else:
+        step = timedelta(days=1)
+
+    existing = {row["bucket"]: row["count"] for row in rows}
+
+    # Truncate start to the bucket boundary
+    if granularity == "hour":
+        cursor = start.replace(minute=0, second=0, microsecond=0)
+    elif granularity == "week":
+        # Monday-start ISO week
+        cursor = (start - timedelta(days=start.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+    elif granularity == "month":
+        cursor = start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        cursor = start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    filled: list[dict[str, Any]] = []
+    while cursor < end:
+        filled.append({"bucket": cursor, "count": existing.get(cursor, 0)})
+        if granularity == "month":
+            # advance to first day of next month
+            if cursor.month == 12:
+                cursor = cursor.replace(year=cursor.year + 1, month=1)
+            else:
+                cursor = cursor.replace(month=cursor.month + 1)
+        else:
+            cursor = cursor + step
+
+    return filled
 
 
 async def count_events(
@@ -48,8 +95,7 @@ async def events_over_time(
 ) -> list[dict[str, Any]]:
     """Return event counts bucketed by *granularity* (hour/day/week/month).
 
-    Buckets with zero events are not included; callers should zero-fill
-    if a continuous series is required.
+    Missing buckets are zero-filled so the returned series is continuous.
     Returns ``[{"bucket": datetime, "count": int}, ...]`` ordered by bucket.
     """
     trunc_map = {"hour": "hour", "day": "day", "week": "week", "month": "month"}
@@ -67,7 +113,8 @@ async def events_over_time(
         .group_by(bucket_col)
         .order_by(bucket_col)
     )
-    return [{"bucket": row.bucket, "count": row.count} for row in result]
+    rows = [{"bucket": row.bucket, "count": row.count} for row in result]
+    return _zero_fill(rows, start, end, granularity)
 
 
 async def top_properties(
