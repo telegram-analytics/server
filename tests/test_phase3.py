@@ -4,7 +4,7 @@ Unit tests run without a DB; integration tests require DATABASE_URL + Docker.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 # ── Unit tests (no DB) ────────────────────────────────────────────────────
 
@@ -102,6 +102,8 @@ async def test_track_received_at_is_server_time(api_client, db_session):
 
     data = await _create_project(api_client, name="recv-at.com")
     session_id = str(uuid.uuid4())
+    # Use a timestamp within the allowed window (< 1 year old) but clearly in the past
+    old_ts = (datetime.now(UTC) - timedelta(days=30)).replace(microsecond=0)
     before = datetime.now(UTC)
     resp = await api_client.post(
         "/api/v1/track",
@@ -109,7 +111,7 @@ async def test_track_received_at_is_server_time(api_client, db_session):
             "api_key": data["api_key"],
             "event_name": "view",
             "session_id": session_id,
-            "timestamp": "2020-01-01T00:00:00Z",  # ancient client timestamp
+            "timestamp": old_ts.isoformat(),
         },
     )
     after = datetime.now(UTC)
@@ -118,8 +120,9 @@ async def test_track_received_at_is_server_time(api_client, db_session):
     await db_session.invalidate()
     result = await db_session.execute(select(Event).where(Event.session_id == session_id))
     event = result.scalar_one()
-    # timestamp should be 2020-01-01
-    assert event.timestamp.year == 2020
+    # timestamp should be the client-provided value, not server time
+    assert event.timestamp.year == old_ts.year
+    assert event.timestamp.month == old_ts.month
     # received_at must be in the test window (server time)
     assert before <= event.received_at.replace(tzinfo=UTC) <= after
 
