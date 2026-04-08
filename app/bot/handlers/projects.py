@@ -7,6 +7,7 @@ import uuid
 from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from app.bot.constants import escape_photo
 from app.bot.handlers.alerts import show_alerts_menu
 from app.bot.handlers.events import show_events_menu
 from app.bot.handlers.reports import (
@@ -116,7 +117,7 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     data: str = query.data or ""
 
     if data.startswith("proj:"):
-        await _show_project_menu(query, data[5:], admin_chat_id)
+        await _show_project_menu(await escape_photo(query), data[5:], admin_chat_id)
 
     elif data.startswith("del_ask:"):
         await _ask_delete_confirmation(query, data[8:])
@@ -129,15 +130,15 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 
     elif data.startswith("menu:events:"):
         project_id_str = data[12:]
-        await show_events_menu(query, project_id_str, admin_chat_id)
+        await show_events_menu(await escape_photo(query), project_id_str, admin_chat_id)
 
     elif data.startswith("menu:alerts:"):
         project_id_str = data[12:]
-        await show_alerts_menu(query, project_id_str, admin_chat_id)
+        await show_alerts_menu(await escape_photo(query), project_id_str, admin_chat_id)
 
     elif data.startswith("menu:reports:"):
         project_id_str = data[13:]
-        await show_reports_menu(query, project_id_str, admin_chat_id)
+        await show_reports_menu(await escape_photo(query), project_id_str, admin_chat_id)
 
     elif data.startswith("rpt_chart:"):
         project_id_str = data[10:]
@@ -165,13 +166,15 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 
     elif data.startswith("menu:visitors:"):
         project_id_str = data[14:]
-        await show_visitors_menu(query, project_id_str, admin_chat_id)
+        await show_visitors_menu(await escape_photo(query), project_id_str, admin_chat_id)
 
     elif data.startswith("vis_prd:"):
         # vis_prd:{project_id}:{period}
         parts = data[8:].rsplit(":", 1)
         if len(parts) == 2:
-            await update_visitors_period(query, parts[0], admin_chat_id, period=parts[1])
+            await update_visitors_period(
+                await escape_photo(query), parts[0], admin_chat_id, period=parts[1]
+            )
 
     elif data.startswith("vis_chart:"):
         # vis_chart:{project_id}:{dimension}:{period}

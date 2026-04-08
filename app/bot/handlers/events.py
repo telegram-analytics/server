@@ -15,6 +15,7 @@ from telegram import (
 )
 from telegram.ext import ContextTypes
 
+from app.bot.constants import escape_photo
 from app.bot.states import BotStateService
 from app.core.config import get_settings
 from app.core.database import get_session_factory
@@ -119,7 +120,7 @@ async def events_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     data: str = query.data or ""
 
     if data == "back:events":
-        await _show_events_list_from_state(query, admin_chat_id)
+        await _show_events_list_from_state(await escape_photo(query), admin_chat_id)
 
     elif data.startswith("evt:"):
         event_name = data[4:]
