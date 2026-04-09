@@ -213,11 +213,71 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             parse_mode="HTML",
         )
 
-    elif data == "back:projects":
-        await _show_projects_list(query, admin_chat_id)
+    elif data == "back:projects" or data == "home:projects":
+        await _show_projects_list(await escape_photo(query), admin_chat_id)
+
+    elif data == "home:reports":
+        await _pick_project_for(query, admin_chat_id, feature="reports")
+
+    elif data == "home:alerts":
+        await _pick_project_for(query, admin_chat_id, feature="alerts")
+
+    elif data == "home:help":
+        from app.bot.handlers.system import _HELP_TEXT
+
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("« Back", callback_data="home:start")]]
+        )
+        await query.edit_message_text(_HELP_TEXT, parse_mode="HTML", reply_markup=keyboard)
+
+    elif data == "home:start":
+        from app.bot.handlers.system import _START_KEYBOARD
+
+        await query.edit_message_text(
+            "👋 <b>Welcome to tgram-analytics!</b>\n\n"
+            "Self-hosted analytics you control via Telegram.",
+            parse_mode="HTML",
+            reply_markup=_START_KEYBOARD,
+        )
 
 
 # ── Private helpers ────────────────────────────────────────────────────────────
+
+
+async def _pick_project_for(query: CallbackQuery, admin_chat_id: int, *, feature: str) -> None:
+    """Show a project picker that routes to the given feature menu."""
+    factory = get_session_factory()
+    async with factory() as session:
+        projects = await list_projects(session, admin_chat_id)
+
+    if not projects:
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("« Back", callback_data="home:start")]]
+        )
+        await query.edit_message_text(
+            "📭 No projects yet.\n\nUse /add <i>name</i> to create one.",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        return
+
+    if len(projects) == 1:
+        # Skip picker — go straight to the feature menu
+        pid = str(projects[0].id)
+        if feature == "reports":
+            await show_reports_menu(query, pid, admin_chat_id)
+        elif feature == "alerts":
+            await show_alerts_menu(query, pid, admin_chat_id)
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton(f"📊 {p.name}", callback_data=f"menu:{feature}:{p.id}")]
+            for p in projects
+        ]
+        + [[InlineKeyboardButton("« Back", callback_data="home:start")]]
+    )
+    await query.edit_message_text(f"Select a project for {feature}:", reply_markup=keyboard)
 
 
 async def _show_projects_list(query: CallbackQuery, admin_chat_id: int) -> None:
@@ -227,14 +287,19 @@ async def _show_projects_list(query: CallbackQuery, admin_chat_id: int) -> None:
         projects = await list_projects(session, admin_chat_id)
 
     if not projects:
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("« Home", callback_data="home:start")]]
+        )
         await query.edit_message_text(
             "📭 No projects yet.\n\nUse /add <i>name</i> to create one.",
             parse_mode="HTML",
+            reply_markup=keyboard,
         )
         return
 
     keyboard = InlineKeyboardMarkup(
         [[InlineKeyboardButton(f"📊 {p.name}", callback_data=f"proj:{p.id}")] for p in projects]
+        + [[InlineKeyboardButton("« Home", callback_data="home:start")]]
     )
     await query.edit_message_text("Select a project:", reply_markup=keyboard)
 

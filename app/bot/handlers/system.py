@@ -1,6 +1,6 @@
 """System command handlers: /start, /help, /cancel."""
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from app.bot.states import BotStateService
@@ -18,15 +18,25 @@ _HELP_TEXT = (
     "💡 <b>Tip:</b> Charts support period switching and period-over-period comparison"
 )
 
+_START_KEYBOARD = InlineKeyboardMarkup(
+    [
+        [InlineKeyboardButton("📊 My Projects", callback_data="home:projects")],
+        [
+            InlineKeyboardButton("📈 Reports", callback_data="home:reports"),
+            InlineKeyboardButton("🔔 Alerts", callback_data="home:alerts"),
+        ],
+        [InlineKeyboardButton("📖 Help", callback_data="home:help")],
+    ]
+)
+
 
 async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     assert update.message is not None
     await update.message.reply_text(
         "👋 <b>Welcome to tgram-analytics!</b>\n\n"
-        "Self-hosted analytics you control via Telegram.\n\n"
-        "Use /add <i>name</i> to create your first project and get an API key.\n"
-        "Use /help for a full list of commands.",
+        "Self-hosted analytics you control via Telegram.",
         parse_mode="HTML",
+        reply_markup=_START_KEYBOARD,
     )
 
 

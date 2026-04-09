@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from telegram import Bot
+from telegram import Bot, BotCommand
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -87,6 +87,19 @@ async def init_bot(token: str, admin_chat_id: int, webhook_base_url: str = "") -
     _application = build_application(token, admin_chat_id)
     await _application.initialize()
     await _application.start()
+
+    await _application.bot.set_my_commands(
+        [
+            BotCommand("start", "Home menu"),
+            BotCommand("projects", "List your projects"),
+            BotCommand("events", "Browse event types"),
+            BotCommand("report", "Chart for an event"),
+            BotCommand("alerts", "List active alerts"),
+            BotCommand("add", "Create a new project"),
+            BotCommand("help", "Show help"),
+            BotCommand("cancel", "Cancel current operation"),
+        ]
+    )
 
     if webhook_base_url:
         webhook_url = f"{webhook_base_url.rstrip('/')}/webhook/{token}"
