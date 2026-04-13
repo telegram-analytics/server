@@ -19,8 +19,20 @@ from app.bot.constants import escape_photo
 from app.bot.states import BotStateService
 from app.core.config import get_settings
 from app.core.database import get_session_factory
-from app.services.analytics import compare_periods, count_events, events_over_time, list_event_names
-from app.services.charts import ChartGenerationError, generate_comparison_chart, generate_line_chart
+from app.services.analytics import (
+    compare_periods,
+    count_events,
+    events_over_time,
+    list_event_names,
+    list_property_keys,
+    top_properties,
+)
+from app.services.charts import (
+    ChartGenerationError,
+    generate_comparison_chart,
+    generate_line_chart,
+    generate_pie_chart,
+)
 from app.services.projects import get_project, list_projects
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -143,6 +155,13 @@ async def events_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         parts = data[9:].split(":", 1)
         if len(parts) == 2:
             await _send_event_comparison(query, admin_chat_id, period=parts[0], gran=parts[1])
+
+    elif data == "evta:pie":
+        await _show_pie_property_picker(query, admin_chat_id)
+
+    elif data.startswith("evta:pie_k:"):
+        prop_key = data[11:]
+        await _send_event_pie_chart(query, admin_chat_id, prop_key)
 
 
 # ── Events list ────────────────────────────────────────────────────────────────
@@ -288,6 +307,7 @@ async def _show_event_detail(query: CallbackQuery, event_name: str, admin_chat_i
                 InlineKeyboardButton("🔔 Add Alert", callback_data="evta:alert"),
                 InlineKeyboardButton("📊 Chart (7d)", callback_data="evta:chart"),
             ],
+            [InlineKeyboardButton("🥧 Pie Chart", callback_data="evta:pie")],
             [InlineKeyboardButton("« Back to Events", callback_data="back:events")],
         ]
     )
@@ -590,4 +610,134 @@ async def _send_event_comparison(
             caption=f"📊 {project.name} · {event_name} · {delta_str}",
         ),
         reply_markup=keyboard,
+    )
+
+
+# ── Pie chart ─────────────────────────────────────────────────────────────────
+
+
+async def _show_pie_property_picker(query: CallbackQuery, admin_chat_id: int) -> None:
+    """List property keys for the current event so the user can pick one for a pie chart."""
+    assert isinstance(query.message, Message)
+    factory = get_session_factory()
+    async with factory() as session:
+        svc = BotStateService(session)
+        state = await svc.get(query.message.chat_id)
+
+        if state is None or state.flow != "events" or state.step != "detail":
+            await query.edit_message_text("❌ Session expired. Use /events to start again.")
+            return
+
+        payload = state.payload or {}
+        project_id_str = payload.get("project_id")
+        event_name = payload.get("event_name")
+
+        if not project_id_str or not event_name:
+            await query.edit_message_text("❌ Session expired. Use /events to start again.")
+            return
+
+        pid = uuid.UUID(project_id_str)
+        now = datetime.now(UTC)
+        keys = await list_property_keys(
+            session,
+            project_id=pid,
+            event_name=event_name,
+            start=now - timedelta(days=30),
+            end=now,
+        )
+
+    if not keys:
+        await query.answer(f"No properties found for {event_name}.", show_alert=True)
+        return
+
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(k, callback_data=f"evta:pie_k:{k}")] for k in keys
+    ]
+    rows.append([InlineKeyboardButton("« Back", callback_data=f"evt:{event_name}")])
+
+    await query.edit_message_text(
+        f"🥧 <b>Pie chart for {event_name}</b>\n\nPick a property to break down:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(rows),
+    )
+
+
+async def _send_event_pie_chart(
+    query: CallbackQuery, admin_chat_id: int, property_key: str
+) -> None:
+    """Generate and send a pie chart for the selected event + property."""
+    assert isinstance(query.message, Message)
+    factory = get_session_factory()
+    async with factory() as session:
+        svc = BotStateService(session)
+        state = await svc.get(query.message.chat_id)
+
+        if state is None or state.flow != "events" or state.step != "detail":
+            await query.edit_message_text("❌ Session expired. Use /events to start again.")
+            return
+
+        payload = state.payload or {}
+        project_id_str = payload.get("project_id")
+        event_name = payload.get("event_name")
+
+        if not project_id_str or not event_name:
+            await query.edit_message_text("❌ Session expired. Use /events to start again.")
+            return
+
+        pid = uuid.UUID(project_id_str)
+        project = await get_project(session, pid, admin_chat_id)
+        if project is None:
+            await query.edit_message_text("❌ Project not found.")
+            return
+
+        now = datetime.now(UTC)
+        rows = await top_properties(
+            session,
+            project_id=pid,
+            event_name=event_name,
+            property_key=property_key,
+            start=now - timedelta(days=30),
+            end=now,
+            limit=10,
+        )
+
+    back_keyboard = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("← Pick another property", callback_data="evta:pie")],
+            [InlineKeyboardButton("« Back to Events", callback_data="back:events")],
+        ]
+    )
+
+    if not rows:
+        await query.answer(f"No data for property '{property_key}'.", show_alert=True)
+        return
+
+    # Reshape from {"value": ..., "count": ...} to {"source": ..., "count": ...}
+    pie_data = [{"source": r["value"], "count": r["count"]} for r in rows]
+
+    settings = get_settings()
+    try:
+        png_bytes = await generate_pie_chart(
+            pie_data,
+            title=f"{event_name} · {property_key}",
+            quickchart_url=settings.quickchart_url,
+        )
+    except ChartGenerationError:
+        await query.answer("⚠️ Chart service unavailable.", show_alert=True)
+        return
+
+    await query.edit_message_text(
+        f"🥧 <b>{event_name}</b> · {property_key}  ↓",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [InlineKeyboardButton("← Pick another property", callback_data="evta:pie")],
+                [InlineKeyboardButton("« Back to Events", callback_data="back:events")],
+            ]
+        ),
+    )
+    await query.message.reply_photo(
+        photo=png_bytes,
+        caption=f"🥧 {project.name} · {event_name} · {property_key}",
+        reply_markup=back_keyboard,
     )

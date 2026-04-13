@@ -173,6 +173,42 @@ async def list_event_names(
     ]
 
 
+async def list_property_keys(
+    session: AsyncSession,
+    *,
+    project_id: uuid.UUID,
+    event_name: str,
+    start: datetime,
+    end: datetime,
+    limit: int = 10,
+) -> list[str]:
+    """Return distinct top-level property keys for an event in [start, end).
+
+    Only returns keys that appear at least once in the given time window.
+    Results are ordered by frequency (most common first).
+    """
+    key_col = func.jsonb_object_keys(Event.properties).label("key")
+
+    # Sub-query: one row per (event_id, key)
+    sub = (
+        select(key_col)
+        .where(
+            Event.project_id == project_id,
+            Event.event_name == event_name,
+            Event.timestamp >= start,
+            Event.timestamp < end,
+        )
+        .subquery()
+    )
+    result = await session.execute(
+        select(sub.c.key, func.count().label("cnt"))
+        .group_by(sub.c.key)
+        .order_by(func.count().desc())
+        .limit(limit)
+    )
+    return [row.key for row in result]
+
+
 async def compare_periods(
     session: AsyncSession,
     *,

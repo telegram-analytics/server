@@ -187,6 +187,52 @@ async def generate_bar_chart(
     return await _post_chart(config, quickchart_url)
 
 
+async def generate_pie_chart(
+    data: list[dict[str, Any]],
+    *,
+    title: str,
+    label_key: str = "source",
+    quickchart_url: str = "http://quickchart:3400",
+) -> bytes:
+    """Generate a pie chart and return PNG bytes.
+
+    *data* is a list of dicts each containing a label field (default
+    ``"source"``) and ``"count"``.  Example::
+
+        [{"source": "Google / Search", "count": 10}, ...]
+
+    Raises ``ChartGenerationError`` if QuickChart is unavailable.
+    """
+    labels = [row[label_key] for row in data]
+    values = [row["count"] for row in data]
+    colors = [_BAR_COLORS[i % len(_BAR_COLORS)] for i in range(len(data))]
+
+    config: dict[str, Any] = {
+        "type": "pie",
+        "data": {
+            "labels": labels,
+            "datasets": [
+                {
+                    "data": values,
+                    "backgroundColor": colors,
+                }
+            ],
+        },
+        "options": {
+            "plugins": {
+                "title": {"display": True, "text": title},
+                "datalabels": {
+                    "display": True,
+                    "formatter": "function(v,ctx){var t=ctx.dataset.data.reduce(function(a,b){return a+b},0);return(v/t*100).toFixed(1)+'%'}",
+                    "color": "#fff",
+                    "font": {"weight": "bold"},
+                },
+            },
+        },
+    }
+    return await _post_chart(config, quickchart_url)
+
+
 _FUNNEL_COLORS = [
     "rgba(99, 102, 241, 1.0)",  # indigo-500 (full)
     "rgba(99, 102, 241, 0.80)",
