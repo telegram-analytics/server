@@ -49,9 +49,10 @@ def create_app() -> FastAPI:
     # restricted to exactly what the ingestion endpoints need.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origin_regex=".*",
         allow_methods=["POST"],
         allow_headers=["Content-Type"],
+        max_age=600,
     )
 
     app.include_router(health_router)
