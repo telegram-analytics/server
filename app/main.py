@@ -50,6 +50,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=".*",
+        allow_credentials=True,
         allow_methods=["POST"],
         allow_headers=["Content-Type"],
         max_age=600,
