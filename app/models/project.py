@@ -24,7 +24,18 @@ class Project(Base):
     name: Mapped[str] = mapped_column(sa.Text, nullable=False)
     # Raw API key is shown once on creation; only its SHA-256 hash is stored.
     api_key_hash: Mapped[str] = mapped_column(sa.Text, unique=True, nullable=False)
+    # Legacy single-tenant owner reference — Telegram chat id of the admin.
+    # Retained for back-compat while handlers are migrated off it; the
+    # authoritative owner link is ``owner_user_id`` → ``users.id``.
     admin_chat_id: Mapped[int] = mapped_column(sa.BigInteger, nullable=False)
+    # Nullable during the rollout window so the migration can add the column
+    # first and backfill next. After backfill it is effectively NOT NULL; a
+    # later migration (post-rollout) can enforce that at the DB level.
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.UUID(as_uuid=True),
+        sa.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+    )
     domain_allowlist: Mapped[Any] = mapped_column(
         ARRAY(sa.Text()),
         server_default=sa.text("ARRAY[]::text[]"),
