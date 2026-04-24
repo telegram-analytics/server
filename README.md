@@ -4,7 +4,7 @@
 > No dashboard. No third parties. Just Telegram.
 
 [![CI](https://github.com/tgram-analytics/server/actions/workflows/ci.yml/badge.svg)](https://github.com/tgram-analytics/server/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: FSL-1.1-ALv2](https://img.shields.io/badge/License-FSL--1.1--ALv2-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 
 ---
@@ -241,4 +241,19 @@ Please follow the existing code style (ruff-enforced) and keep PRs focused.
 
 ## License
 
-[MIT](LICENSE) — see the file for details.
+[Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2)](LICENSE).
+
+In plain language:
+
+- **You can self-host and use this freely** for your own needs — personal,
+  internal business, non-commercial research, professional services.
+- **You cannot resell it as a competing hosted analytics service.** For two
+  years after each release we reserve the right to be the only ones offering
+  this as a commercial managed product.
+- **On the second anniversary of each release, that release automatically
+  relicenses to Apache License 2.0** — fully permissive, forever.
+
+See the [FSL FAQ](https://fsl.software/) for details.
+
+The client SDKs (`tgram-analytics-js`, `-py`, `-dart`) remain under MIT so you
+can ship them with any project.

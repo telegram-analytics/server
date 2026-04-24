@@ -10,7 +10,7 @@ name = "tgram-analytics-server"
 version = "0.1.0"
 description = "Self-hosted, privacy-first analytics platform controlled via Telegram"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "FSL-1.1-ALv2" }
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
