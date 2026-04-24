@@ -93,6 +93,27 @@ await TgAnalytics.init(
 await TgAnalytics.track('purchase', properties: {'amount': 49});
 ```
 
+### Browser vs. server calls
+
+One `proj_` API key handles both: embed it in your frontend **and** use it from
+your backend — events land in the same project.
+
+The **domain allowlist** (set via `/settings`) is a browser-only guard against
+abuse of the public key embedded in your JS bundle. It works like this:
+
+| Caller | `Origin` header | Behavior |
+|---|---|---|
+| Browser on allowed host | `https://myapp.com` | ✅ accepted |
+| Browser on other host | `https://evil.com` | ❌ 403 |
+| Backend SDK (Python/Node/curl) | *(absent)* | ✅ accepted — API key auth only |
+| Sandboxed iframe / `file://` | `null` | ❌ 403 when allowlist is set |
+
+Allowlist entries support bare hosts (`myapp.com`), full URLs, and wildcards
+(`*.myapp.com` matches any subdomain, but not the apex — add both explicitly
+if you need `myapp.com` and `www.myapp.com`).
+
+An empty allowlist allows all origins.
+
 ### Bot commands
 
 | Command | Description |
@@ -152,6 +173,14 @@ make migrate
 # Roll back one step
 make downgrade
 ```
+
+### Database requirements
+
+- **PostgreSQL ≥ 15**. Required for reliable core `gen_random_uuid()` and
+  JSONB features used by newer migrations.
+- The `pgcrypto` extension is enabled automatically by migration `0004`. On
+  managed Postgres this just works; on self-managed Postgres the role running
+  the first migration needs superuser (or a DBA must pre-enable the extension).
 
 ---
 
