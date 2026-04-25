@@ -84,6 +84,19 @@ def get_bot() -> Bot:
 async def init_bot(token: str, admin_chat_id: int, webhook_base_url: str = "") -> None:
     """Initialise the bot application and optionally register the webhook."""
     global _application
+
+    # Bootstrap the singleton ``User`` for self-host mode. ``init_db`` has
+    # already run by the time this is called (cf. app/main.py lifespan).
+    # Local import to avoid circular imports during module load.
+    from app.bot import auth as _auth
+    from app.core.database import get_session_factory
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        user = await _auth.ensure_singleton_user(session, admin_chat_id)
+        await session.commit()
+        _auth._singleton_user_id = user.id
+
     _application = build_application(token, admin_chat_id)
     await _application.initialize()
     await _application.start()
