@@ -19,13 +19,15 @@ from app.services.projects import get_project
 # ── Menu display ──────────────────────────────────────────────────────────────
 
 
-async def show_settings_menu(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
+async def show_settings_menu(
+    query: CallbackQuery, project_id_str: str, owner_user_id: uuid.UUID
+) -> None:
     """Display current project settings with edit buttons."""
     pid = uuid.UUID(project_id_str)
 
     factory = get_session_factory()
     async with factory() as session:
-        project = await get_project(session, pid, admin_chat_id)
+        project = await get_project(session, pid, owner_user_id)
         if project is None:
             await query.edit_message_text("❌ Project not found.")
             return
@@ -63,7 +65,7 @@ async def show_settings_menu(query: CallbackQuery, project_id_str: str, admin_ch
 
 
 async def start_set_retention(
-    query: CallbackQuery, project_id_str: str, admin_chat_id: int
+    query: CallbackQuery, project_id_str: str, owner_user_id: uuid.UUID
 ) -> None:
     """Kick off the retention-days conversation flow."""
     assert isinstance(query.message, Message)
@@ -90,7 +92,7 @@ async def start_set_retention(
 
 
 async def start_set_allowlist(
-    query: CallbackQuery, project_id_str: str, admin_chat_id: int
+    query: CallbackQuery, project_id_str: str, owner_user_id: uuid.UUID
 ) -> None:
     """Kick off the domain-allowlist conversation flow."""
     assert isinstance(query.message, Message)
@@ -118,14 +120,19 @@ async def start_set_allowlist(
     )
     await query.edit_message_text(
         "🌐 <b>Domain allowlist</b>\n\n"
-        "Enter allowed domains, comma-separated.\n\n"
-        "<i>Example: myapp.com, api.myapp.com</i>",
+        "Enter allowed domains, comma-separated. "
+        "Use <code>*.example.com</code> to match any subdomain.\n\n"
+        "<i>Example: myapp.com, *.myapp.com</i>\n\n"
+        "Only browser traffic is checked — backend SDK calls are "
+        "authenticated by the API key alone.",
         parse_mode="HTML",
         reply_markup=keyboard,
     )
 
 
-async def handle_allow_all(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
+async def handle_allow_all(
+    query: CallbackQuery, project_id_str: str, owner_user_id: uuid.UUID
+) -> None:
     """Clear the domain allowlist (allow all origins) via button callback."""
     assert isinstance(query.message, Message)
     chat_id = query.message.chat_id

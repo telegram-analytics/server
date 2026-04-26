@@ -8,8 +8,11 @@ users so that the onboarding handler can upsert them.
 
 from __future__ import annotations
 
+import functools
+import logging
 import uuid
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +22,9 @@ from app.models.user import User
 
 if TYPE_CHECKING:
     from telegram import Update
+    from telegram.ext import ContextTypes
+
+logger = logging.getLogger(__name__)
 
 
 # Module-level cache of the singleton user's UUID. Populated by ``init_bot``
@@ -78,3 +84,65 @@ async def get_current_user(session: AsyncSession, update: Update) -> User | None
         return None
     result = await session.execute(select(User).where(User.id == _singleton_user_id))
     return result.scalar_one_or_none()
+
+
+# Type alias for a PTB handler that has been augmented with ``user`` and
+# ``session`` keyword arguments by ``@requires_user``.
+_AuthedHandler = Callable[..., Awaitable[Any]]
+
+
+def requires_user(handler: _AuthedHandler) -> _AuthedHandler:
+    """Decorator that resolves the current ``User`` and injects it.
+
+    Wraps a python-telegram-bot handler whose signature is::
+
+        async def h(update, ctx, *, user: User, session: AsyncSession): ...
+
+    On invocation:
+
+    * Opens a new ``AsyncSession`` from ``get_session_factory()``.
+    * Calls :func:`get_current_user`. If it returns ``None`` (cloud-mode
+      unknown user, or singleton not yet bootstrapped) the handler replies
+      "Not authorized" and short-circuits.
+    * Otherwise calls the wrapped handler with ``user`` and ``session``
+      injected as keyword arguments.
+    * Commits the session on a clean return; rolls back on any exception
+      so the wrapped handler doesn't have to.
+
+    The decorator uses local imports to avoid circular imports during
+    bot module load (``app.bot.handlers.*`` import this module, and the
+    decorator depends on ``app.core.database``).
+    """
+
+    @functools.wraps(handler)
+    async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Any:
+        from app.core.database import get_session_factory
+
+        session_factory = get_session_factory()
+        async with session_factory() as session:
+            user = await get_current_user(session, update)
+            if user is None:
+                # Self-host: singleton not bootstrapped (defensive — should
+                # not happen in production). Cloud (Phase 6+): unknown user.
+                if update.effective_message is not None:
+                    try:
+                        await update.effective_message.reply_text("Not authorized.")
+                    except Exception:  # pragma: no cover - best-effort reply
+                        logger.exception("Failed to send 'Not authorized' reply")
+                elif update.callback_query is not None:
+                    try:
+                        await update.callback_query.answer("Not authorized.", show_alert=True)
+                    except Exception:  # pragma: no cover
+                        logger.exception("Failed to answer callback with 'Not authorized'")
+                return None
+
+            try:
+                result = await handler(update, ctx, user=user, session=session)
+            except Exception:
+                await session.rollback()
+                raise
+            else:
+                await session.commit()
+                return result
+
+    return wrapper

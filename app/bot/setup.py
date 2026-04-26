@@ -39,6 +39,12 @@ def build_application(token: str, admin_chat_id: int) -> Application[Any, Any, A
     from app.bot.handlers.reports import report_command
     from app.bot.handlers.system import cancel_command, help_command, start_command
 
+    # Defense-in-depth: every handler is also wrapped with ``@requires_user``
+    # which resolves the current ``User`` and short-circuits unauthorised
+    # callers. The ``filters.Chat(...)`` gate below is now redundant for
+    # security purposes but kept as a cheap pre-filter so PTB doesn't even
+    # dispatch updates from non-admin chats. Removing it would require
+    # ``CLOUD_MODE`` (Phase 6+) where any Telegram user may interact.
     admin_filter = filters.Chat(chat_id=admin_chat_id)
 
     app = ApplicationBuilder().token(token).updater(None).build()

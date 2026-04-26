@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from app.bot.auth import requires_user
 from app.bot.constants import escape_photo
 from app.bot.handlers.alerts import show_alerts_menu
 from app.bot.handlers.events import show_events_menu
@@ -31,12 +33,20 @@ from app.bot.handlers.visitors import (
 )
 from app.core.config import get_settings
 from app.core.database import get_session_factory
+from app.models.user import User
 from app.services.projects import create_project, delete_project, get_project, list_projects
 
 # ── /add ──────────────────────────────────────────────────────────────────────
 
 
-async def add_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+@requires_user
+async def add_command(
+    update: Update,
+    ctx: ContextTypes.DEFAULT_TYPE,
+    *,
+    user: User,
+    session: AsyncSession,
+) -> None:
     assert update.message is not None
 
     if not ctx.args:
@@ -49,14 +59,12 @@ async def add_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     settings = get_settings()
     name = " ".join(ctx.args)
 
-    factory = get_session_factory()
-    async with factory() as session:
-        project, api_key = await create_project(
-            session,
-            name=name,
-            admin_chat_id=settings.admin_chat_id,
-        )
-        await session.commit()
+    project, api_key = await create_project(
+        session,
+        name=name,
+        admin_chat_id=user.telegram_user_id,
+        owner_user_id=user.id,
+    )
 
     base = settings.webhook_base_url.rstrip("/") or "https://your-server.com"
     env_block = f"TGA_URL={base}\nTGA_API_KEY={api_key}"
@@ -79,13 +87,17 @@ async def add_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 # ── /projects ─────────────────────────────────────────────────────────────────
 
 
-async def projects_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+@requires_user
+async def projects_command(
+    update: Update,
+    ctx: ContextTypes.DEFAULT_TYPE,
+    *,
+    user: User,
+    session: AsyncSession,
+) -> None:
     assert update.message is not None
-    settings = get_settings()
 
-    factory = get_session_factory()
-    async with factory() as session:
-        projects = await list_projects(session, settings.admin_chat_id)
+    projects = await list_projects(session, user.id)
 
     if not projects:
         await update.message.reply_text(
@@ -103,54 +115,55 @@ async def projects_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 # ── Inline callback dispatcher ─────────────────────────────────────────────────
 
 
-async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+@requires_user
+async def project_callback(
+    update: Update,
+    ctx: ContextTypes.DEFAULT_TYPE,
+    *,
+    user: User,
+    session: AsyncSession,
+) -> None:
     query = update.callback_query
     assert query is not None
     await query.answer()
 
-    settings = get_settings()
-    admin_chat_id = settings.admin_chat_id
-
-    # Admin-only guard for callbacks (CommandHandler filter doesn't cover these)
-    if update.effective_user is None or update.effective_user.id != admin_chat_id:
-        return
-
+    owner_user_id = user.id
     data: str = query.data or ""
 
     if data.startswith("proj:"):
-        await _show_project_menu(await escape_photo(query), data[5:], admin_chat_id)
+        await _show_project_menu(await escape_photo(query), data[5:], owner_user_id)
 
     elif data.startswith("del_ask:"):
         await _ask_delete_confirmation(query, data[8:])
 
     elif data.startswith("del_yes:"):
-        await _confirm_delete(query, data[8:], admin_chat_id)
+        await _confirm_delete(query, data[8:], owner_user_id)
 
     elif data.startswith("del_no:"):
-        await _show_project_menu(query, data[7:], admin_chat_id)
+        await _show_project_menu(query, data[7:], owner_user_id)
 
     elif data.startswith("menu:events:"):
         project_id_str = data[12:]
-        await show_events_menu(await escape_photo(query), project_id_str, admin_chat_id)
+        await show_events_menu(await escape_photo(query), project_id_str, owner_user_id)
 
     elif data.startswith("menu:alerts:"):
         project_id_str = data[12:]
-        await show_alerts_menu(await escape_photo(query), project_id_str, admin_chat_id)
+        await show_alerts_menu(await escape_photo(query), project_id_str, owner_user_id)
 
     elif data.startswith("menu:reports:"):
         project_id_str = data[13:]
-        await show_reports_menu(await escape_photo(query), project_id_str, admin_chat_id)
+        await show_reports_menu(await escape_photo(query), project_id_str, owner_user_id)
 
     elif data.startswith("rpt_chart:"):
         project_id_str = data[10:]
-        await send_chart_photo(query, project_id_str, admin_chat_id)
+        await send_chart_photo(query, project_id_str, owner_user_id)
 
     elif data.startswith("rpt_prd:"):
         # rpt_prd:{project_id}:{period}:{gran}
         parts = data[8:].rsplit(":", 2)
         if len(parts) == 3:
             await update_report_chart(
-                query, parts[0], admin_chat_id, period=parts[1], gran=parts[2]
+                query, parts[0], owner_user_id, period=parts[1], gran=parts[2]
             )
 
     elif data.startswith("rpt_cmp:"):
@@ -158,27 +171,27 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         parts = data[8:].rsplit(":", 2)
         if len(parts) == 3:
             await send_report_comparison(
-                query, parts[0], admin_chat_id, period=parts[1], gran=parts[2]
+                query, parts[0], owner_user_id, period=parts[1], gran=parts[2]
             )
 
     elif data.startswith("rpt_pp:"):
         project_id_str = data[7:]
-        await handle_report_project_pick(query, project_id_str, admin_chat_id, ctx)
+        await handle_report_project_pick(query, project_id_str, owner_user_id, ctx)
 
     elif data.startswith("menu:funnels:"):
         project_id_str = data[13:]
-        await show_funnels_menu(await escape_photo(query), project_id_str, admin_chat_id)
+        await show_funnels_menu(await escape_photo(query), project_id_str, owner_user_id)
 
     elif data.startswith("menu:visitors:"):
         project_id_str = data[14:]
-        await show_visitors_menu(await escape_photo(query), project_id_str, admin_chat_id)
+        await show_visitors_menu(await escape_photo(query), project_id_str, owner_user_id)
 
     elif data.startswith("vis_prd:"):
         # vis_prd:{project_id}:{period}
         parts = data[8:].rsplit(":", 1)
         if len(parts) == 2:
             await update_visitors_period(
-                await escape_photo(query), parts[0], admin_chat_id, period=parts[1]
+                await escape_photo(query), parts[0], owner_user_id, period=parts[1]
             )
 
     elif data.startswith("vis_chart:"):
@@ -186,24 +199,24 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         parts = data[10:].rsplit(":", 2)
         if len(parts) == 3:
             await send_visitors_chart(
-                query, parts[0], admin_chat_id, dimension=parts[1], period=parts[2]
+                query, parts[0], owner_user_id, dimension=parts[1], period=parts[2]
             )
 
     elif data.startswith("menu:settings:"):
         project_id_str = data[14:]
-        await show_settings_menu(query, project_id_str, admin_chat_id)
+        await show_settings_menu(query, project_id_str, owner_user_id)
 
     elif data.startswith("set_ret:"):
         project_id_str = data[8:]
-        await start_set_retention(query, project_id_str, admin_chat_id)
+        await start_set_retention(query, project_id_str, owner_user_id)
 
     elif data.startswith("set_dom:"):
         project_id_str = data[8:]
-        await start_set_allowlist(query, project_id_str, admin_chat_id)
+        await start_set_allowlist(query, project_id_str, owner_user_id)
 
     elif data.startswith("allow_all:"):
         project_id_str = data[10:]
-        await handle_allow_all(query, project_id_str, admin_chat_id)
+        await handle_allow_all(query, project_id_str, owner_user_id)
 
     elif data.startswith("menu:"):
         parts = data.split(":", 2)
@@ -214,13 +227,13 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         )
 
     elif data == "back:projects" or data == "home:projects":
-        await _show_projects_list(await escape_photo(query), admin_chat_id)
+        await _show_projects_list(await escape_photo(query), owner_user_id)
 
     elif data == "home:reports":
-        await _pick_project_for(query, admin_chat_id, feature="reports")
+        await _pick_project_for(query, owner_user_id, feature="reports")
 
     elif data == "home:alerts":
-        await _pick_project_for(query, admin_chat_id, feature="alerts")
+        await _pick_project_for(query, owner_user_id, feature="alerts")
 
     elif data == "home:help":
         from app.bot.handlers.system import _HELP_TEXT
@@ -244,11 +257,13 @@ async def project_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 # ── Private helpers ────────────────────────────────────────────────────────────
 
 
-async def _pick_project_for(query: CallbackQuery, admin_chat_id: int, *, feature: str) -> None:
+async def _pick_project_for(
+    query: CallbackQuery, owner_user_id: uuid.UUID, *, feature: str
+) -> None:
     """Show a project picker that routes to the given feature menu."""
     factory = get_session_factory()
     async with factory() as session:
-        projects = await list_projects(session, admin_chat_id)
+        projects = await list_projects(session, owner_user_id)
 
     if not projects:
         keyboard = InlineKeyboardMarkup(
@@ -265,9 +280,9 @@ async def _pick_project_for(query: CallbackQuery, admin_chat_id: int, *, feature
         # Skip picker — go straight to the feature menu
         pid = str(projects[0].id)
         if feature == "reports":
-            await show_reports_menu(query, pid, admin_chat_id)
+            await show_reports_menu(query, pid, owner_user_id)
         elif feature == "alerts":
-            await show_alerts_menu(query, pid, admin_chat_id)
+            await show_alerts_menu(query, pid, owner_user_id)
         return
 
     keyboard = InlineKeyboardMarkup(
@@ -280,11 +295,11 @@ async def _pick_project_for(query: CallbackQuery, admin_chat_id: int, *, feature
     await query.edit_message_text(f"Select a project for {feature}:", reply_markup=keyboard)
 
 
-async def _show_projects_list(query: CallbackQuery, admin_chat_id: int) -> None:
+async def _show_projects_list(query: CallbackQuery, owner_user_id: uuid.UUID) -> None:
     """Re-display the projects list via callback (for « Back button)."""
     factory = get_session_factory()
     async with factory() as session:
-        projects = await list_projects(session, admin_chat_id)
+        projects = await list_projects(session, owner_user_id)
 
     if not projects:
         keyboard = InlineKeyboardMarkup(
@@ -304,10 +319,12 @@ async def _show_projects_list(query: CallbackQuery, admin_chat_id: int) -> None:
     await query.edit_message_text("Select a project:", reply_markup=keyboard)
 
 
-async def _show_project_menu(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
+async def _show_project_menu(
+    query: CallbackQuery, project_id_str: str, owner_user_id: uuid.UUID
+) -> None:
     factory = get_session_factory()
     async with factory() as session:
-        project = await get_project(session, uuid.UUID(project_id_str), admin_chat_id)
+        project = await get_project(session, uuid.UUID(project_id_str), owner_user_id)
 
     if project is None:
         await query.edit_message_text("❌ Project not found.")
@@ -360,10 +377,12 @@ async def _ask_delete_confirmation(query: CallbackQuery, project_id_str: str) ->
     )
 
 
-async def _confirm_delete(query: CallbackQuery, project_id_str: str, admin_chat_id: int) -> None:
+async def _confirm_delete(
+    query: CallbackQuery, project_id_str: str, owner_user_id: uuid.UUID
+) -> None:
     factory = get_session_factory()
     async with factory() as session:
-        deleted = await delete_project(session, uuid.UUID(project_id_str), admin_chat_id)
+        deleted = await delete_project(session, uuid.UUID(project_id_str), owner_user_id)
         await session.commit()
 
     if deleted:
