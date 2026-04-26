@@ -94,8 +94,15 @@ async def test_project_owner_user_id_links_to_user(db_session: AsyncSession) -> 
     assert project.owner_user_id == user.id
 
 
-async def test_project_owner_user_id_is_nullable(db_session: AsyncSession) -> None:
-    """During rollout, owner_user_id must accept NULL (pre-backfill projects)."""
+async def test_project_owner_user_id_is_not_null_post_0005(db_session: AsyncSession) -> None:
+    """After migration 0005, owner_user_id is NOT NULL.
+
+    Inserting a project without an owner must raise. Pre-0005 this test
+    asserted the column accepted NULLs (rollout window). 0005 closes that
+    window; the column is now mandatory.
+    """
+    from sqlalchemy.exc import IntegrityError
+
     from app.models.project import Project
 
     project = Project(
@@ -104,10 +111,8 @@ async def test_project_owner_user_id_is_nullable(db_session: AsyncSession) -> No
         admin_chat_id=333,
     )
     db_session.add(project)
-    await db_session.flush()
-    await db_session.refresh(project)
-
-    assert project.owner_user_id is None
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
 
 
 async def test_project_owner_cascade_on_user_delete(db_session: AsyncSession) -> None:
@@ -279,3 +284,97 @@ def test_migration_backfills_owner_user_id(db_url: str) -> None:
 
     finally:
         _scoped_cleanup()
+        # restore head so the rest of the suite sees the expected schema
+        _run_alembic(["alembic", "upgrade", "head"], db_url)
+
+
+def test_migration_0005_enforces_not_null(db_url: str) -> None:
+    """Migration 0005 makes ``projects.owner_user_id`` NOT NULL.
+
+    Round-trip:
+      1. downgrade to 0004 (column nullable again)
+      2. insert a project with NULL ``owner_user_id`` → succeeds
+      3. upgrade to 0005 → fails with a self-explanatory RAISE EXCEPTION
+      4. clean up the offending row, retry upgrade → succeeds
+      5. downgrade to 0004 → constraint dropped, column nullable again
+    """
+    psycopg = pytest.importorskip("psycopg")
+
+    rnd = random.Random()
+    chat_id = rnd.randint(10_000_000, 99_999_999)
+    name = f"p35nn-{rnd.randint(10_000, 99_999)}-orphan"
+    sync_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+
+    def _cleanup() -> None:
+        with psycopg.connect(sync_url) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM projects WHERE name = %s", (name,))
+
+    try:
+        _run_alembic(["alembic", "downgrade", "0004"], db_url)
+        _cleanup()
+
+        # Insert a row with NULL owner_user_id (allowed at 0004).
+        with psycopg.connect(sync_url) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO projects (id, name, api_key_hash, admin_chat_id, owner_user_id)
+                    VALUES (gen_random_uuid(), %s, %s, %s, NULL)
+                    """,
+                    (name, f"hash-{name}", chat_id),
+                )
+
+        # Upgrade should fail loudly via the RAISE EXCEPTION pre-check.
+        env = {**os.environ, "DATABASE_URL": db_url}
+        result = subprocess.run(
+            ["alembic", "upgrade", "0005"],
+            cwd=SERVER_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0, "upgrade must fail when NULLs remain"
+        combined = result.stdout + result.stderr
+        assert (
+            "owner_user_id has NULLs" in combined
+        ), f"expected RAISE EXCEPTION text in alembic output; got:\n{combined}"
+
+        # Clean up the orphan and retry — should succeed.
+        _cleanup()
+        _run_alembic(["alembic", "upgrade", "0005"], db_url)
+
+        # Constraint is in place — inserting a NULL now must fail.
+        with psycopg.connect(sync_url) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO projects (id, name, api_key_hash, admin_chat_id, owner_user_id)
+                        VALUES (gen_random_uuid(), %s, %s, %s, NULL)
+                        """,
+                        (name, f"hash-{name}", chat_id),
+                    )
+                    raise AssertionError("INSERT with NULL owner_user_id must fail at 0005")
+                except psycopg.errors.NotNullViolation:
+                    pass
+
+        # Symmetric downgrade: constraint dropped, NULLs allowed again.
+        _run_alembic(["alembic", "downgrade", "0004"], db_url)
+        with psycopg.connect(sync_url) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO projects (id, name, api_key_hash, admin_chat_id, owner_user_id)
+                    VALUES (gen_random_uuid(), %s, %s, %s, NULL)
+                    """,
+                    (name, f"hash-{name}", chat_id),
+                )
+
+    finally:
+        _cleanup()
+        _run_alembic(["alembic", "upgrade", "head"], db_url)

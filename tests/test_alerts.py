@@ -47,12 +47,17 @@ def _make_callback(chat_id: int = ADMIN_ID, data: str = "alert_add:some-uuid"):
 # ── Alert CRUD service tests ───────────────────────────────────────────────────
 
 
-async def test_create_alert_with_every_condition(db_session, session_factory):
+async def test_create_alert_with_every_condition(db_session, session_factory, singleton_user):
     from app.services.alerts import create_alert
     from app.services.projects import create_project
 
     async with session_factory() as session:
-        project, _ = await create_project(session, name="test-alerts.com", admin_chat_id=ADMIN_ID)
+        project, _ = await create_project(
+            session,
+            name="test-alerts.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
+        )
         await session.commit()
 
         alert = await create_alert(
@@ -69,12 +74,17 @@ async def test_create_alert_with_every_condition(db_session, session_factory):
         assert alert.is_active is True
 
 
-async def test_create_alert_with_every_n_condition(db_session, session_factory):
+async def test_create_alert_with_every_n_condition(db_session, session_factory, singleton_user):
     from app.services.alerts import create_alert
     from app.services.projects import create_project
 
     async with session_factory() as session:
-        project, _ = await create_project(session, name="test-every-n.com", admin_chat_id=ADMIN_ID)
+        project, _ = await create_project(
+            session,
+            name="test-every-n.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
+        )
         await session.commit()
 
         alert = await create_alert(
@@ -91,13 +101,16 @@ async def test_create_alert_with_every_n_condition(db_session, session_factory):
         assert alert.threshold_n == 50
 
 
-async def test_create_alert_with_threshold_condition(db_session, session_factory):
+async def test_create_alert_with_threshold_condition(db_session, session_factory, singleton_user):
     from app.services.alerts import create_alert
     from app.services.projects import create_project
 
     async with session_factory() as session:
         project, _ = await create_project(
-            session, name="test-threshold.com", admin_chat_id=ADMIN_ID
+            session,
+            name="test-threshold.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
         )
         await session.commit()
 
@@ -115,12 +128,17 @@ async def test_create_alert_with_threshold_condition(db_session, session_factory
         assert alert.threshold_n == 100
 
 
-async def test_list_alerts_returns_project_alerts(db_session, session_factory):
+async def test_list_alerts_returns_project_alerts(db_session, session_factory, singleton_user):
     from app.services.alerts import create_alert, list_alerts
     from app.services.projects import create_project
 
     async with session_factory() as session:
-        project, _ = await create_project(session, name="list-test.com", admin_chat_id=ADMIN_ID)
+        project, _ = await create_project(
+            session,
+            name="list-test.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
+        )
         await session.commit()
 
         await create_alert(
@@ -137,12 +155,17 @@ async def test_list_alerts_returns_project_alerts(db_session, session_factory):
         assert event_names == {"event1", "event2"}
 
 
-async def test_delete_alert(db_session, session_factory):
+async def test_delete_alert(db_session, session_factory, singleton_user):
     from app.services.alerts import create_alert, delete_alert, list_alerts
     from app.services.projects import create_project
 
     async with session_factory() as session:
-        project, _ = await create_project(session, name="delete-test.com", admin_chat_id=ADMIN_ID)
+        project, _ = await create_project(
+            session,
+            name="delete-test.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
+        )
         await session.commit()
 
         alert = await create_alert(
@@ -158,24 +181,34 @@ async def test_delete_alert(db_session, session_factory):
         assert len(alerts) == 0
 
 
-async def test_delete_alert_not_found(db_session, session_factory):
+async def test_delete_alert_not_found(db_session, session_factory, singleton_user):
     from app.services.alerts import delete_alert
     from app.services.projects import create_project
 
     async with session_factory() as session:
-        project, _ = await create_project(session, name="delete-nf.com", admin_chat_id=ADMIN_ID)
+        project, _ = await create_project(
+            session,
+            name="delete-nf.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
+        )
         await session.commit()
 
         deleted = await delete_alert(session, uuid.uuid4(), project.id)
         assert deleted is False
 
 
-async def test_toggle_alert(db_session, session_factory):
+async def test_toggle_alert(db_session, session_factory, singleton_user):
     from app.services.alerts import create_alert, toggle_alert
     from app.services.projects import create_project
 
     async with session_factory() as session:
-        project, _ = await create_project(session, name="toggle-test.com", admin_chat_id=ADMIN_ID)
+        project, _ = await create_project(
+            session,
+            name="toggle-test.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
+        )
         await session.commit()
 
         alert = await create_alert(
@@ -487,14 +520,19 @@ async def test_condition_every_creates_alert_immediately(session_factory, single
 # ── Alert notification tests ───────────────────────────────────────────────────
 
 
-async def test_alert_notification_sent_on_fire(db_session, session_factory):
+async def test_alert_notification_sent_on_fire(db_session, session_factory, singleton_user):
     """When an alert fires, a Telegram message should be sent."""
     from app.api.ingestion import _run_alert_evaluation
     from app.services.alerts import create_alert
     from app.services.projects import create_project
 
     async with session_factory() as session:
-        project, _ = await create_project(session, name="notify-test.com", admin_chat_id=ADMIN_ID)
+        project, _ = await create_project(
+            session,
+            name="notify-test.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
+        )
         await create_alert(
             session,
             project_id=project.id,
@@ -520,14 +558,21 @@ async def test_alert_notification_sent_on_fire(db_session, session_factory):
     assert "notify-test.com" in call_kwargs["text"]
 
 
-async def test_alert_notification_message_varies_by_condition(db_session, session_factory):
+async def test_alert_notification_message_varies_by_condition(
+    db_session, session_factory, singleton_user
+):
     """Different conditions produce different notification messages."""
     from app.api.ingestion import _run_alert_evaluation
     from app.services.alerts import create_alert
     from app.services.projects import create_project
 
     async with session_factory() as session:
-        project, _ = await create_project(session, name="msg-vary.com", admin_chat_id=ADMIN_ID)
+        project, _ = await create_project(
+            session,
+            name="msg-vary.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
+        )
         await create_alert(
             session,
             project_id=project.id,
@@ -554,13 +599,18 @@ async def test_alert_notification_message_varies_by_condition(db_session, sessio
     assert "times" in text
 
 
-async def test_no_notification_when_no_alerts_fire(db_session, session_factory):
+async def test_no_notification_when_no_alerts_fire(db_session, session_factory, singleton_user):
     """No notification sent if no alerts match or fire."""
     from app.api.ingestion import _run_alert_evaluation
     from app.services.projects import create_project
 
     async with session_factory() as session:
-        project, _ = await create_project(session, name="no-fire.com", admin_chat_id=ADMIN_ID)
+        project, _ = await create_project(
+            session,
+            name="no-fire.com",
+            admin_chat_id=ADMIN_ID,
+            owner_user_id=singleton_user.id,
+        )
         await session.commit()
         pid = project.id
 
