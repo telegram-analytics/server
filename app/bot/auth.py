@@ -1,9 +1,11 @@
 """User resolution for bot and internal-API call sites.
 
-In self-host mode, a single ``User`` row is auto-created at startup from
-``ADMIN_CHAT_ID`` and cached in-process. In cloud mode (Phase 6+), the
-resolver looks up by Telegram user id and returns ``None`` for unknown
-users so that the onboarding handler can upsert them.
+The default resolver returns the singleton ``User`` bootstrapped from
+``ADMIN_CHAT_ID`` at startup and cached in-process. Deployments may
+override the strategy by registering a custom callable via
+:func:`app.extensions.register_user_resolver`; in that case the
+singleton path is unused and the registered resolver is the sole source
+of truth.
 """
 
 from __future__ import annotations
@@ -28,7 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 # Module-level cache of the singleton user's UUID. Populated by ``init_bot``
-# at startup. In cloud mode this remains ``None``.
+# at startup. Remains ``None`` if a custom resolver is registered and the
+# singleton path is unused.
 _singleton_user_id: uuid.UUID | None = None
 
 
@@ -65,12 +68,13 @@ async def ensure_singleton_user(session: AsyncSession, telegram_user_id: int) ->
 async def get_current_user(session: AsyncSession, update: Update) -> User | None:
     """Resolve the ``User`` for the caller of a Telegram ``Update``.
 
-    Self-host mode (Phase 3.1, current): returns the bootstrapped singleton
-    user — keyed off the cached ``_singleton_user_id`` populated by
-    ``init_bot``. Returns ``None`` if the singleton has not been bootstrapped
+    If a custom resolver is registered via
+    :func:`app.extensions.register_user_resolver`, that callable is used
+    instead. Otherwise returns the singleton bootstrapped from
+    ``ADMIN_CHAT_ID`` and cached in ``_singleton_user_id``. Returns
+    ``None`` if no resolver could authorize this caller — for the default
+    resolver this only happens if the singleton has not been bootstrapped
     yet (defensive; should not happen in production).
-
-    Cloud mode: not implemented until Phase 6.
     """
     cloud_mode = False  # TODO(Phase 6): drive from ``settings.cloud_mode``.
     if cloud_mode:
@@ -101,9 +105,9 @@ def requires_user(handler: _AuthedHandler) -> _AuthedHandler:
     On invocation:
 
     * Opens a new ``AsyncSession`` from ``get_session_factory()``.
-    * Calls :func:`get_current_user`. If it returns ``None`` (cloud-mode
-      unknown user, or singleton not yet bootstrapped) the handler replies
-      "Not authorized" and short-circuits.
+    * Calls :func:`get_current_user`. If it returns ``None`` (no resolver
+      could authorize this caller) the handler replies "Not authorized"
+      and short-circuits.
     * Otherwise calls the wrapped handler with ``user`` and ``session``
       injected as keyword arguments.
     * Commits the session on a clean return; rolls back on any exception
@@ -122,8 +126,7 @@ def requires_user(handler: _AuthedHandler) -> _AuthedHandler:
         async with session_factory() as session:
             user = await get_current_user(session, update)
             if user is None:
-                # Self-host: singleton not bootstrapped (defensive — should
-                # not happen in production). Cloud (Phase 6+): unknown user.
+                # Resolver returned None — caller is not authorized.
                 if update.effective_message is not None:
                     try:
                         await update.effective_message.reply_text("Not authorized.")

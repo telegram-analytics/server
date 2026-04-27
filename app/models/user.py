@@ -1,9 +1,10 @@
 """SQLAlchemy ORM model for the users table.
 
-A ``User`` represents the Telegram account that owns one or more projects.
-In self-host mode there is typically a single user (backfilled from
-``ADMIN_CHAT_ID`` at migration time). In cloud mode, a ``User`` row is
-created the first time a new Telegram account interacts with the bot.
+A ``User`` represents the Telegram account that owns one or more
+projects. The default OSS install bootstraps a single user from
+``ADMIN_CHAT_ID`` at startup; deployments that register a custom
+resolver via :func:`app.extensions.register_user_resolver` may create
+``User`` rows on demand from incoming updates.
 """
 
 import uuid

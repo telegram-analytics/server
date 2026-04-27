@@ -41,10 +41,12 @@ def build_application(token: str, admin_chat_id: int) -> Application[Any, Any, A
 
     # Defense-in-depth: every handler is also wrapped with ``@requires_user``
     # which resolves the current ``User`` and short-circuits unauthorised
-    # callers. The ``filters.Chat(...)`` gate below is now redundant for
-    # security purposes but kept as a cheap pre-filter so PTB doesn't even
-    # dispatch updates from non-admin chats. Removing it would require
-    # ``CLOUD_MODE`` (Phase 6+) where any Telegram user may interact.
+    # callers. The ``filters.Chat(...)`` gate below is a cheap pre-filter
+    # so PTB doesn't dispatch updates from non-admin chats. Deployments
+    # that register a custom user resolver and additional filters via
+    # :mod:`app.extensions` may want to widen the audience — see
+    # :func:`app.extensions.register_bot_filter` for the AND-composition
+    # contract.
     admin_filter = filters.Chat(chat_id=admin_chat_id)
 
     app = ApplicationBuilder().token(token).updater(None).build()
