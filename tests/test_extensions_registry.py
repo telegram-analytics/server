@@ -164,6 +164,7 @@ def test_public_surface_is_stable() -> None:
     expected_public = {
         "UserResolver",
         "ProjectPreCreate",
+        "ExtensionError",
         "register_user_resolver",
         "register_project_pre_create",
         "register_bot_filter",

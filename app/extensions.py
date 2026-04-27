@@ -14,6 +14,9 @@ Public surface (stable):
 * :func:`register_user_resolver` — replace the default resolver
 * :func:`register_project_pre_create` — append a pre-flush quota/policy hook
 * :func:`register_bot_filter` — append a bot-handler filter (AND-combined)
+* :class:`ExtensionError` — base class for extension-raised errors that
+  should be rendered to the end user (Telegram message / API response)
+  instead of being treated as a server bug
 
 Each ``register_*`` is matched by a ``get_*`` accessor that internal call
 sites use to consume the registry. The accessors return immutable views
@@ -31,6 +34,20 @@ if TYPE_CHECKING:
     from telegram.ext import filters as ptb_filters
 
     from app.models.user import User
+
+
+class ExtensionError(Exception):
+    """Base class for plugin-raised errors meant to be shown to the end user.
+
+    OSS handlers (``add_command``, etc.) catch this class specifically and
+    render ``str(exc)`` back to the caller (Telegram reply / HTTP response)
+    instead of letting the exception propagate as a 500. Plugins should
+    subclass this when they want the message to be seen — e.g. quota
+    violations, plan-tier limits, policy rejections.
+
+    Anything that is genuinely a bug (a TypeError, an unexpected None) must
+    NOT inherit from ExtensionError; let it propagate so the bug is logged.
+    """
 
 
 class UserResolver(Protocol):

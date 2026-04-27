@@ -60,12 +60,19 @@ async def add_command(
     settings = get_settings()
     name = " ".join(ctx.args)
 
-    project, api_key = await create_project(
-        session,
-        name=name,
-        admin_chat_id=user.telegram_user_id,
-        owner_user_id=user.id,
-    )
+    from app.extensions import ExtensionError
+
+    try:
+        project, api_key = await create_project(
+            session,
+            name=name,
+            admin_chat_id=user.telegram_user_id,
+            owner_user_id=user.id,
+        )
+    except ExtensionError as exc:
+        # Plugin-raised, user-facing — render the message and stop.
+        await update.message.reply_text(str(exc))
+        return
 
     base = settings.webhook_base_url.rstrip("/") or "https://your-server.com"
     env_block = f"TGA_URL={base}\nTGA_API_KEY={api_key}"
