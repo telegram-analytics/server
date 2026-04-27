@@ -34,14 +34,33 @@ async def create_project(
     typed as optional only so legacy/transitional callers (e.g. the
     internal HTTP API in ``app/api/projects.py``) can land without
     breaking until Phase 3.4 wires them through ``ensure_singleton_user``.
+
+    Hooks: any callable registered via
+    :func:`app.extensions.register_project_pre_create` runs in
+    registration order *after* the API key has been generated but
+    *before* any DB write. A hook may raise to abort creation; the
+    exception propagates and no project row is inserted. OSS ships with
+    zero hooks by default.
     """
+    from app.extensions import get_project_pre_create_hooks
+
     api_key = generate_api_key()
+
+    safe_allowlist = list(domain_allowlist or [])
+    for hook in get_project_pre_create_hooks():
+        await hook(
+            session,
+            name=name,
+            owner_user_id=owner_user_id,
+            domain_allowlist=list(safe_allowlist),
+        )
+
     project = Project(
         name=name,
         api_key_hash=hash_api_key(api_key),
         admin_chat_id=admin_chat_id,
         owner_user_id=owner_user_id,
-        domain_allowlist=domain_allowlist or [],
+        domain_allowlist=safe_allowlist,
     )
     session.add(project)
     await session.flush()
