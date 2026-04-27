@@ -76,14 +76,13 @@ async def get_current_user(session: AsyncSession, update: Update) -> User | None
     resolver this only happens if the singleton has not been bootstrapped
     yet (defensive; should not happen in production).
     """
-    cloud_mode = False  # TODO(Phase 6): drive from ``settings.cloud_mode``.
-    if cloud_mode:
-        # TODO(Phase 6): cloud-mode branch — look up by
-        # ``update.effective_user.id`` and return ``None`` for unknown users
-        # so the onboarding handler can upsert them.
-        raise NotImplementedError("Cloud-mode user resolution lands in Phase 6.")
+    from app.extensions import get_user_resolver
 
-    # Self-host branch.
+    resolver = get_user_resolver()
+    if resolver is not None:
+        return await resolver(session, update)
+
+    # Default: singleton bootstrapped from ``ADMIN_CHAT_ID``.
     if _singleton_user_id is None:
         return None
     result = await session.execute(select(User).where(User.id == _singleton_user_id))
