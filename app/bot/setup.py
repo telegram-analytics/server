@@ -47,7 +47,11 @@ def build_application(token: str, admin_chat_id: int) -> Application[Any, Any, A
     # :mod:`app.extensions` may want to widen the audience — see
     # :func:`app.extensions.register_bot_filter` for the AND-composition
     # contract.
-    admin_filter = filters.Chat(chat_id=admin_chat_id)
+    from app.extensions import get_bot_filters
+
+    admin_filter: filters.BaseFilter = filters.Chat(chat_id=admin_chat_id)
+    for extra in get_bot_filters():
+        admin_filter = admin_filter & extra
 
     app = ApplicationBuilder().token(token).updater(None).build()
 
