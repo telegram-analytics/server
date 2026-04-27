@@ -11,15 +11,21 @@ to one UTC day. It rotates automatically because the cache key is keyed by
 
 from __future__ import annotations
 
+import collections
 import functools
 import hashlib
+import json
+import logging
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from ua_parser import user_agent_parser
 
 from app.core.redis_client import get_redis
+
+logger = logging.getLogger(__name__)
 
 _SALT_KEY_PREFIX = "ip_salt:"
 _SALT_TTL_SECONDS = 60 * 60 * 48  # 48h, covers UTC-day boundary slack
@@ -181,3 +187,84 @@ def parse_user_agent(ua: str) -> tuple[str, str, str]:
     device_type = _classify_device_type(device_family, os_family)
 
     return (browser, os_name, device_type)
+
+
+# ── PII tripwire + properties size cap ─────────────────────────────────────
+
+PII_DENYLIST: frozenset[str] = frozenset(
+    {
+        "email",
+        "phone",
+        "ssn",
+        "password",
+        "token",
+        "credit_card",
+        "card_number",
+        "cvv",
+        "iban",
+        "tax_id",
+    }
+)
+
+MAX_PROPERTIES_BYTES = 4096
+
+# Module-level counters for PII / oversized observations. Snapshotted by
+# ``get_privacy_counters``; the operator-only HTTP surface arrives in 4.7.
+_privacy_counters: collections.Counter[tuple[str, str]] = collections.Counter()
+
+
+def scrub_properties(
+    props: dict[str, Any],
+    *,
+    project_id: uuid.UUID | None = None,
+) -> tuple[dict[str, Any], list[str], bool]:
+    """Drop PII-named keys and enforce a 4 KB serialized-size cap.
+
+    Returns ``(scrubbed, dropped_keys, oversized)``:
+
+    * Keys are matched case-insensitively against ``PII_DENYLIST``; the
+      original casing is preserved in ``dropped_keys`` for telemetry.
+    * Values are never inspected — key-based denylist only.
+    * If the surviving dict serializes to more than ``MAX_PROPERTIES_BYTES``
+      bytes (compact JSON), all properties are dropped and ``oversized`` is
+      ``True``. The event itself is still accepted by the caller.
+
+    Emits structured ``logger.warning`` events for both PII drops and oversize
+    truncation, and bumps ``_privacy_counters`` for monitoring snapshots.
+    """
+    dropped_keys: list[str] = []
+    survivors: dict[str, Any] = {}
+    for key, value in props.items():
+        if isinstance(key, str) and key.lower() in PII_DENYLIST:
+            dropped_keys.append(key)
+            continue
+        survivors[key] = value
+
+    pid_str = str(project_id) if project_id else None
+
+    if dropped_keys:
+        logger.warning(
+            "pii_dropped",
+            extra={"project_id": pid_str, "keys": dropped_keys},
+        )
+        _privacy_counters[(str(project_id), "pii")] += len(dropped_keys)
+
+    encoded = json.dumps(survivors, separators=(",", ":"), default=str)
+    if len(encoded) > MAX_PROPERTIES_BYTES:
+        logger.warning(
+            "properties_oversized",
+            extra={"project_id": pid_str, "bytes": len(encoded)},
+        )
+        _privacy_counters[(str(project_id), "oversized")] += 1
+        return ({}, dropped_keys, True)
+
+    return (survivors, dropped_keys, False)
+
+
+def get_privacy_counters() -> dict[str, int]:
+    """Return a snapshot of the privacy counters keyed ``"{project_id}:{kind}"``.
+
+    ``kind`` is one of ``"pii"`` or ``"oversized"``. Intended for the operator
+    HTTP endpoint landing in Phase 4.7.
+    """
+    return {f"{pid}:{kind}": count for (pid, kind), count in _privacy_counters.items()}

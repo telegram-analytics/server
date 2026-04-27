@@ -116,3 +116,69 @@ async def test_pageview_persists_visitor_hash_and_parsed_ua(api_client, db_sessi
     # url stays in properties (existing behavior); raw UA does NOT
     assert ev.properties.get("url") == "https://site.com/landing"
     assert _CHROME_DESKTOP_UA not in str(ev.properties)
+
+
+async def test_track_drops_pii_keys_silently(api_client, db_session):
+    """POST /track with a PII key: 202, DB row has only the clean keys."""
+    data = await _create_project(api_client, name="privacy-pii.com")
+    project_id = uuid.UUID(data["id"])
+
+    resp = await api_client.post(
+        "/api/v1/track",
+        json={
+            "api_key": data["api_key"],
+            "event_name": "signup",
+            "session_id": str(uuid.uuid4()),
+            "properties": {"email": "leak@x.com", "plan": "pro"},
+        },
+        headers={"User-Agent": _CHROME_DESKTOP_UA},
+    )
+    assert resp.status_code == 202, resp.text
+
+    await db_session.invalidate()
+
+    rows = (
+        (
+            await db_session.execute(
+                select(Event).where(Event.project_id == project_id, Event.event_name == "signup")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].properties == {"plan": "pro"}
+
+
+async def test_track_drops_oversized_properties_silently(api_client, db_session):
+    """POST /track with ~5 KB properties: 202, DB row has empty properties dict."""
+    data = await _create_project(api_client, name="privacy-oversize.com")
+    project_id = uuid.UUID(data["id"])
+
+    # 5 KB nested via a single big string value; passes the 100-entry cap.
+    big_props = {"blob": "x" * 5120}
+    resp = await api_client.post(
+        "/api/v1/track",
+        json={
+            "api_key": data["api_key"],
+            "event_name": "bigevent",
+            "session_id": str(uuid.uuid4()),
+            "properties": big_props,
+        },
+        headers={"User-Agent": _CHROME_DESKTOP_UA},
+    )
+    assert resp.status_code == 202, resp.text
+
+    await db_session.invalidate()
+
+    rows = (
+        (
+            await db_session.execute(
+                select(Event).where(Event.project_id == project_id, Event.event_name == "bigevent")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].properties == {}

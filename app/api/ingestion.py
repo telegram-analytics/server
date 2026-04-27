@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_session, get_session_factory
-from app.core.privacy import hash_visitor, parse_user_agent
+from app.core.privacy import hash_visitor, parse_user_agent, scrub_properties
 from app.core.security import validate_api_key
 from app.schemas.event import PageviewRequest, TrackEventRequest
 from app.services.events import evaluate_alerts, insert_event, is_origin_allowed
@@ -210,12 +210,14 @@ async def track(
     visitor_hash = await hash_visitor(project.id, client_ip, ua)
     browser, os_name, device_type = parse_user_agent(ua)
 
+    scrubbed, _dropped, _oversized = scrub_properties(body.properties, project_id=project.id)
+
     await insert_event(
         session,
         project_id=project.id,
         event_name=body.event_name,
         session_id=body.session_id,
-        properties=body.properties,
+        properties=scrubbed,
         timestamp=body.timestamp,
         visitor_hash=visitor_hash,
         browser=browser,
@@ -255,12 +257,14 @@ async def pageview(
     if body.referrer:
         properties["referrer"] = body.referrer
 
+    scrubbed, _dropped, _oversized = scrub_properties(properties, project_id=project.id)
+
     await insert_event(
         session,
         project_id=project.id,
         event_name="pageview",
         session_id=body.session_id,
-        properties=properties,
+        properties=scrubbed,
         timestamp=body.timestamp,
         url=body.url,
         referrer=body.referrer,
