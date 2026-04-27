@@ -16,6 +16,7 @@ import functools
 import hashlib
 import json
 import logging
+import re
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -259,6 +260,43 @@ def scrub_properties(
         return ({}, dropped_keys, True)
 
     return (survivors, dropped_keys, False)
+
+
+# ── Log redaction filter ──────────────────────────────────────────────────
+
+_REDACT_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(p)
+    for p in (
+        r"proj_[a-f0-9]{64}",
+        r"sk_(?:live|test)_[A-Za-z0-9]+",
+        r"(?i)(?:email|phone|ssn|password|token|credit_card)[\"\']?\s*[:=]\s*[\"\']?[^\"\'\s,}]+",
+    )
+]
+
+
+class RedactingFilter(logging.Filter):
+    """Logging filter that scrubs sensitive tokens from formatted log records.
+
+    The filter calls ``record.getMessage()`` (which interpolates
+    ``record.msg % record.args``) to obtain the fully formatted message, runs
+    each regex in ``_REDACT_PATTERNS`` against it, then writes the redacted
+    string back to ``record.msg`` and clears ``record.args``. Clearing
+    ``args`` is essential: if any downstream handler / formatter were to call
+    ``getMessage()`` again, leaving the args in place would trigger a second
+    ``%``-interpolation against the already-substituted message and either
+    raise ``TypeError`` or silently double-format.
+
+    Installed on the root logger from ``create_app()`` so every logger in the
+    process inherits the redaction (uvicorn, sqlalchemy, third-party libs).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        for pat in _REDACT_PATTERNS:
+            msg = pat.sub("[REDACTED]", msg)
+        record.msg = msg
+        record.args = ()
+        return True
 
 
 def get_privacy_counters() -> dict[str, int]:
