@@ -11,8 +11,13 @@ to one UTC day. It rotates automatically because the cache key is keyed by
 
 from __future__ import annotations
 
+import functools
+import hashlib
 import secrets
+import uuid
 from datetime import UTC, datetime, timedelta
+
+from ua_parser import user_agent_parser
 
 from app.core.redis_client import get_redis
 
@@ -80,3 +85,99 @@ async def get_today_salt() -> str:
         # our candidate; the next caller will re-populate.
         return candidate
     return winner
+
+
+# ── Visitor hashing ────────────────────────────────────────────────────────
+
+_VISITOR_HASH_LEN = 16  # 64-bit truncation; collision odds acceptable per project/day
+
+
+async def hash_visitor(project_id: uuid.UUID, client_ip: str, user_agent: str) -> str:
+    """Return a stable, daily-rotating visitor identifier.
+
+    Formula (pinned — do not change without a coordinated migration):
+
+        salt = await get_today_salt()
+        raw  = f"{salt}{project_id}{client_ip}{user_agent}".encode()
+        return hashlib.sha256(raw).hexdigest()[:16]
+
+    Properties:
+    * Idempotent for (project, IP, UA) within one UTC day.
+    * Rotates at UTC midnight because ``get_today_salt`` is keyed by date.
+    * Bound to ``project_id`` so the same visitor on two different projects
+      yields different hashes (no cross-project correlation).
+    * Truncated to 16 hex chars (64 bits) — fits the ``events.visitor_hash``
+      ``String(16)`` column. Widening would require a migration.
+    """
+    salt = await get_today_salt()
+    raw = f"{salt}{project_id}{client_ip}{user_agent}".encode()
+    return hashlib.sha256(raw).hexdigest()[:_VISITOR_HASH_LEN]
+
+
+# ── User-Agent parsing ─────────────────────────────────────────────────────
+
+_UNKNOWN = "Unknown"
+_BOT_DEVICE_FAMILIES = {"Spider"}
+
+
+def _classify_device_type(device_family: str, os_family: str) -> str:
+    """Map ua-parser device + os heuristics to a coarse device-type bucket.
+
+    Returns one of: ``"mobile" | "tablet" | "desktop" | "bot" | "unknown"``.
+    """
+    if device_family in _BOT_DEVICE_FAMILIES:
+        return "bot"
+    df = device_family.lower() if device_family else ""
+    of = os_family.lower() if os_family else ""
+
+    if "ipad" in df or "tablet" in df or of == "android" and "tablet" in df:
+        return "tablet"
+    if df == "ipad":
+        return "tablet"
+
+    # Mobile OSes signal phones unless the device family says tablet (handled above).
+    if of in {"ios", "android", "windows phone", "blackberry os", "kaios"}:
+        return "mobile"
+    if "iphone" in df or "mobile" in df or "phone" in df:
+        return "mobile"
+
+    if df in {"other", ""} and of in {"other", ""}:
+        return "unknown"
+
+    # Desktop OSes (Windows, Mac OS X, Linux, ChromeOS, etc.) and "Other"
+    # device family with a known OS → desktop.
+    return "desktop"
+
+
+@functools.lru_cache(maxsize=1024)
+def parse_user_agent(ua: str) -> tuple[str, str, str]:
+    """Parse a User-Agent string into ``(browser, os, device_type)``.
+
+    * ``browser`` — UA family (e.g. ``"Chrome"``, ``"Firefox"``); ``"Unknown"``
+      when missing or reported as ``"Other"``.
+    * ``os`` — OS family (e.g. ``"Mac OS X"``, ``"iOS"``); ``"Unknown"`` when
+      missing or reported as ``"Other"``.
+    * ``device_type`` — one of ``"mobile" | "tablet" | "desktop" | "bot" |
+      "unknown"`` derived from the parsed device + os families.
+
+    Cached for the last 1024 distinct UA strings via ``functools.lru_cache``
+    — UA distributions are heavily skewed, so this dramatically cuts repeated
+    parse cost on the hot ingestion path.
+    """
+    if not ua:
+        return (_UNKNOWN, _UNKNOWN, "unknown")
+
+    parsed = user_agent_parser.Parse(ua)
+    ua_part = parsed.get("user_agent") or {}
+    os_part = parsed.get("os") or {}
+    device_part = parsed.get("device") or {}
+
+    browser_family = (ua_part.get("family") or "").strip()
+    os_family = (os_part.get("family") or "").strip()
+    device_family = (device_part.get("family") or "").strip()
+
+    browser = browser_family if browser_family and browser_family != "Other" else _UNKNOWN
+    os_name = os_family if os_family and os_family != "Other" else _UNKNOWN
+    device_type = _classify_device_type(device_family, os_family)
+
+    return (browser, os_name, device_type)

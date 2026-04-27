@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_session, get_session_factory
+from app.core.privacy import hash_visitor, parse_user_agent
 from app.core.security import validate_api_key
 from app.schemas.event import PageviewRequest, TrackEventRequest
 from app.services.events import evaluate_alerts, insert_event, is_origin_allowed
@@ -202,6 +203,13 @@ async def track(
     origin = request.headers.get("origin")
     project = await _resolve_project(body.api_key, origin, session, settings.rate_limit_per_second)
 
+    # Privacy: derive visitor_hash and parsed-UA fields here; raw IP/UA never
+    # leave this function.
+    client_ip = request.client.host if request.client else ""
+    ua = request.headers.get("user-agent", "")
+    visitor_hash = await hash_visitor(project.id, client_ip, ua)
+    browser, os_name, device_type = parse_user_agent(ua)
+
     await insert_event(
         session,
         project_id=project.id,
@@ -209,6 +217,10 @@ async def track(
         session_id=body.session_id,
         properties=body.properties,
         timestamp=body.timestamp,
+        visitor_hash=visitor_hash,
+        browser=browser,
+        os=os_name,
+        device_type=device_type,
     )
     await session.commit()
 
@@ -232,6 +244,13 @@ async def pageview(
     origin = request.headers.get("origin")
     project = await _resolve_project(body.api_key, origin, session, settings.rate_limit_per_second)
 
+    # Privacy: derive visitor_hash and parsed-UA fields here; raw IP/UA never
+    # leave this function.
+    client_ip = request.client.host if request.client else ""
+    ua = request.headers.get("user-agent", "")
+    visitor_hash = await hash_visitor(project.id, client_ip, ua)
+    browser, os_name, device_type = parse_user_agent(ua)
+
     properties = {**body.properties, "url": body.url}
     if body.referrer:
         properties["referrer"] = body.referrer
@@ -245,6 +264,10 @@ async def pageview(
         timestamp=body.timestamp,
         url=body.url,
         referrer=body.referrer,
+        visitor_hash=visitor_hash,
+        browser=browser,
+        os=os_name,
+        device_type=device_type,
     )
     await session.commit()
 
