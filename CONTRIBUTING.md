@@ -23,6 +23,21 @@ Apache License 2.0.
   tenant provisioning, and quota enforcement for the hosted service live in a
   private repo. We do not accept external contributions there.
 
+## Extension points
+
+The server is designed so that operators (including ourselves) can plug
+in custom user resolution, project-creation policies, bot filters, and
+extra settings without forking. See the **Extension points** section in
+[`README.md`](README.md) for the full surface, and
+[`tests/fixtures/reference_plugin.py`](tests/fixtures/reference_plugin.py)
+for a working example that exercises every hook. The registry itself is
+in [`app/extensions.py`](app/extensions.py) and the discovery loader in
+[`app/plugins.py`](app/plugins.py).
+
+Pull requests that change any of those four files (registry, loader,
+README extension docs, reference plugin) need extra review since they
+are part of the stable public surface.
+
 ## Before opening a PR
 
 1. Open an issue first for anything larger than a typo or small bug fix — let's

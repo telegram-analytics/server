@@ -262,11 +262,11 @@ async def test_non_admin_callback_is_silently_ignored(singleton_user):
     """Unknown callers must NOT have their callback dispatched.
 
     Phase 3.3: authorization is now owned by ``@requires_user``. When the
-    decorator's ``get_current_user`` returns ``None`` (cloud-mode unknown
-    user, or — as simulated here — the singleton cache is unset), the
-    callback is short-circuited with ``query.answer("Not authorized")`` and
-    ``edit_message_text`` is never invoked. We simulate "non-admin" by
-    blanking the singleton cache for the duration of this test.
+    decorator's ``get_current_user`` returns ``None`` (no resolver could
+    authorize the caller — here simulated by blanking the singleton
+    cache), the callback is short-circuited with
+    ``query.answer("Not authorized")`` and ``edit_message_text`` is
+    never invoked.
     """
     from app.bot import auth as auth_mod
     from app.bot.handlers.projects import project_callback

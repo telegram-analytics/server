@@ -347,11 +347,11 @@ async def test_non_admin_alert_callback_ignored(singleton_user):
     """Unknown callers must NOT have their alert callback dispatched.
 
     Phase 3.3: authorization is owned by ``@requires_user``. When the
-    decorator's resolver returns ``None`` (singleton cache unset, simulating
-    a cloud-mode unknown user) the callback short-circuits before any
-    ``edit_message_text`` call is made. ``alert_callback`` previously
-    consulted ``get_settings().admin_chat_id`` directly; that branch is gone
-    so we no longer patch it.
+    decorator's resolver returns ``None`` (singleton cache unset — the
+    caller could not be authorized), the callback short-circuits before
+    any ``edit_message_text`` call is made. ``alert_callback``
+    previously consulted ``get_settings().admin_chat_id`` directly; that
+    branch is gone so we no longer patch it.
     """
     from app.bot import auth as auth_mod
     from app.bot.handlers.alerts import alert_callback
