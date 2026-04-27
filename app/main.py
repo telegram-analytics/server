@@ -16,6 +16,7 @@ from app.core.config import get_settings
 from app.core.database import close_db, init_db
 from app.core.privacy import RedactingFilter
 from app.core.redis_client import close_redis, init_redis
+from app.jobs.scheduler import shutdown_scheduler, start_scheduler
 
 
 @asynccontextmanager
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     init_db(settings.database_url)
     init_redis(settings.redis_url)
+    start_scheduler()
     await init_bot(
         token=settings.telegram_bot_token,
         admin_chat_id=settings.admin_chat_id,
@@ -31,6 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     yield
     await shutdown_bot()
+    await shutdown_scheduler()
     await close_redis()
     await close_db()
 
