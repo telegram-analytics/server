@@ -200,6 +200,51 @@ See [PROJECT.md](../PROJECT.md) for full architecture documentation.
 
 ---
 
+## Extension points
+
+The server exposes a small, stable set of hooks in [`app/extensions.py`](app/extensions.py) that downstream packages may use to customize behavior without forking. Three registries are available:
+
+| Hook | Purpose | Cardinality |
+|---|---|---|
+| `register_user_resolver(callable)` | Replace the default singleton User resolver | one (raises if registered twice) |
+| `register_project_pre_create(callable)` | Append a pre-flush quota/policy check | many (run in registration order) |
+| `register_bot_filter(filter)` | Append a bot-handler filter, AND-combined with the admin chat gate | many |
+
+A plugin is any Python module that calls one or more of these from a top-level `register()` function. Plugins are discovered at server startup via two mechanisms (in this order):
+
+1. **Python entry points** in the `tgram_analytics.extensions` group. In your plugin's `pyproject.toml`:
+
+    ```toml
+    [project.entry-points."tgram_analytics.extensions"]
+    my-plugin = "my_plugin:register"
+    ```
+
+2. **`TGA_EXTENSIONS` env var**, comma-separated module paths whose `register()` is called:
+
+    ```bash
+    export TGA_EXTENSIONS=my_plugin,another_plugin
+    uvicorn app.main:app
+    ```
+
+### Extending Settings
+
+To add new env vars to `Settings`, subclass it in your plugin and monkey-patch the class. Pydantic propagates `model_config` automatically, including the `extra="ignore"` policy that lets unknown env vars pass through without error.
+
+```python
+# my_plugin/__init__.py
+from app.core import config as app_config
+
+class ExtendedSettings(app_config.Settings):
+    my_extra_var: str = "default"
+
+def register() -> None:
+    app_config.Settings = ExtendedSettings  # type: ignore[misc]
+```
+
+A working reference plugin lives at [`tests/fixtures/resolver_plugin.py`](tests/fixtures/resolver_plugin.py). For the loader contract see [`app/plugins.py`](app/plugins.py); for the registry surface see [`app/extensions.py`](app/extensions.py).
+
+---
+
 ## Deployment
 
 ### VPS (Docker Compose)

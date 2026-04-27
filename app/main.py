@@ -17,6 +17,7 @@ from app.core.database import close_db, init_db
 from app.core.privacy import RedactingFilter
 from app.core.redis_client import close_redis, init_redis
 from app.jobs.scheduler import shutdown_scheduler, start_scheduler
+from app.plugins import load_plugins
 
 
 @asynccontextmanager
@@ -26,6 +27,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     init_db(settings.database_url)
     init_redis(settings.redis_url)
     start_scheduler()
+    # Discover and register downstream extensions BEFORE init_bot — plugins
+    # may register bot filters that build_application needs to compose, and
+    # may register a user resolver that init_bot's singleton bootstrap
+    # would otherwise be the sole source of truth for.
+    load_plugins()
     await init_bot(
         token=settings.telegram_bot_token,
         admin_chat_id=settings.admin_chat_id,
