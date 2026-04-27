@@ -91,13 +91,32 @@ async def start_set_retention(
     )
 
 
-async def start_set_allowlist(
-    query: CallbackQuery, project_id_str: str, owner_user_id: uuid.UUID
-) -> None:
-    """Kick off the domain-allowlist conversation flow."""
-    assert isinstance(query.message, Message)
-    chat_id = query.message.chat_id
+def _build_allowlist_prompt(
+    project_name: str, project_id_str: str
+) -> tuple[str, InlineKeyboardMarkup]:
+    """Build the domain-allowlist prompt text + keyboard for a given project."""
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "🌍 Allow all origins", callback_data=f"allow_all:{project_id_str}"
+                )
+            ],
+        ]
+    )
+    text = (
+        f"🌐 <b>Domain allowlist for {project_name}</b>\n\n"
+        "Enter allowed domains, comma-separated. "
+        "Use <code>*.example.com</code> to match any subdomain.\n\n"
+        "<i>Example: myapp.com, *.myapp.com</i>\n\n"
+        "Only browser traffic is checked — backend SDK calls are "
+        "authenticated by the API key alone."
+    )
+    return text, keyboard
 
+
+async def _save_allowlist_state(chat_id: int, project_id_str: str) -> None:
+    """Persist the conversation state so the next text reply is treated as an allowlist."""
     factory = get_session_factory()
     async with factory() as session:
         svc = BotStateService(session)
@@ -109,25 +128,41 @@ async def start_set_allowlist(
         )
         await session.commit()
 
-    keyboard = InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    "🌍 Allow all origins", callback_data=f"allow_all:{project_id_str}"
-                )
-            ],
-        ]
-    )
-    await query.edit_message_text(
-        "🌐 <b>Domain allowlist</b>\n\n"
-        "Enter allowed domains, comma-separated. "
-        "Use <code>*.example.com</code> to match any subdomain.\n\n"
-        "<i>Example: myapp.com, *.myapp.com</i>\n\n"
-        "Only browser traffic is checked — backend SDK calls are "
-        "authenticated by the API key alone.",
-        parse_mode="HTML",
-        reply_markup=keyboard,
-    )
+
+async def start_set_allowlist(
+    query: CallbackQuery, project_id_str: str, owner_user_id: uuid.UUID
+) -> None:
+    """Kick off the domain-allowlist conversation flow."""
+    assert isinstance(query.message, Message)
+    chat_id = query.message.chat_id
+
+    try:
+        pid = uuid.UUID(project_id_str)
+    except ValueError:
+        await query.edit_message_text("❌ Invalid project reference.")
+        return
+
+    factory = get_session_factory()
+    async with factory() as session:
+        project = await get_project(session, pid, owner_user_id)
+        if project is None:
+            await query.edit_message_text("❌ Project not found.")
+            return
+        project_name = project.name
+
+    await _save_allowlist_state(chat_id, project_id_str)
+
+    text, keyboard = _build_allowlist_prompt(project_name, project_id_str)
+    await query.edit_message_text(text, parse_mode="HTML", reply_markup=keyboard)
+
+
+async def prompt_allowlist_after_create(
+    message: Message, project_id_str: str, project_name: str
+) -> None:
+    """Send the domain-allowlist prompt as a fresh message (used right after /add)."""
+    await _save_allowlist_state(message.chat_id, project_id_str)
+    text, keyboard = _build_allowlist_prompt(project_name, project_id_str)
+    await message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
 
 
 async def handle_allow_all(

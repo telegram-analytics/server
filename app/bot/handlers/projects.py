@@ -22,6 +22,7 @@ from app.bot.handlers.reports import (
 )
 from app.bot.handlers.settings import (
     handle_allow_all,
+    prompt_allowlist_after_create,
     show_settings_menu,
     start_set_allowlist,
     start_set_retention,
@@ -81,6 +82,11 @@ async def add_command(
         f"<b>Env:</b>\n<tg-spoiler><pre>{env_block}</pre></tg-spoiler>\n\n"
         f"<b>Quickstart:</b>\n<pre>{snippet}</pre>",
         parse_mode="HTML",
+    )
+
+    # Immediately prompt for the domain allowlist for this fresh project.
+    await prompt_allowlist_after_create(
+        update.message, project_id_str=str(project.id), project_name=name
     )
 
 
