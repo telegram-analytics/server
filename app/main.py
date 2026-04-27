@@ -13,6 +13,7 @@ from app.api.webhook import router as webhook_router
 from app.bot.setup import init_bot, shutdown_bot
 from app.core.config import get_settings
 from app.core.database import close_db, init_db
+from app.core.redis_client import close_redis, init_redis
 
 
 @asynccontextmanager
@@ -20,6 +21,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: initialise resources on startup, clean up on shutdown."""
     settings = get_settings()
     init_db(settings.database_url)
+    init_redis(settings.redis_url)
     await init_bot(
         token=settings.telegram_bot_token,
         admin_chat_id=settings.admin_chat_id,
@@ -27,6 +29,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     yield
     await shutdown_bot()
+    await close_redis()
     await close_db()
 
 
