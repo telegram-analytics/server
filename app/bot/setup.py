@@ -35,6 +35,7 @@ def build_application(token: str, admin_chat_id: int) -> Application[Any, Any, A
     from app.bot.handlers.alerts import alert_callback, alerts_command, handle_text_message
     from app.bot.handlers.events import events_callback, events_command
     from app.bot.handlers.funnels import funnel_callback
+    from app.bot.handlers.onboarding import onboarding_callback
     from app.bot.handlers.projects import add_command, project_callback, projects_command
     from app.bot.handlers.reports import report_command
     from app.bot.handlers.system import cancel_command, help_command, start_command
@@ -70,6 +71,7 @@ def build_application(token: str, admin_chat_id: int) -> Application[Any, Any, A
     app.add_handler(CallbackQueryHandler(alert_callback, pattern=r"^(alert_|back:alerts:)"))
     app.add_handler(CallbackQueryHandler(events_callback, pattern=r"^(evt[a:]|back:events)"))
     app.add_handler(CallbackQueryHandler(funnel_callback, pattern=r"^(fnl_|back:funnels:)"))
+    app.add_handler(CallbackQueryHandler(onboarding_callback, pattern=r"^onb:"))
     app.add_handler(CallbackQueryHandler(project_callback))
 
     # Text messages for multi-step conversation flows (e.g., add-alert)

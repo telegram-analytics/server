@@ -5,8 +5,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from app.bot.auth import requires_user
+from app.bot.handlers.onboarding import send_first_run_welcome
 from app.bot.states import BotStateService
 from app.models.user import User
+from app.services.projects import list_projects
 
 _HELP_TEXT = (
     "📖 <b>Available commands</b>\n\n"
@@ -41,9 +43,20 @@ async def start_command(
     session: AsyncSession,
 ) -> None:
     assert update.message is not None
+
+    # First-run onboarding: anyone with zero projects gets the guided
+    # welcome instead of the home menu (which references concepts that
+    # don't exist yet for them).
+    projects = await list_projects(session, user.id)
+    if not projects:
+        first_name = ""
+        if update.effective_user is not None:
+            first_name = update.effective_user.first_name or ""
+        await send_first_run_welcome(update.message, first_name)
+        return
+
     await update.message.reply_text(
-        "👋 <b>Welcome to tgram-analytics!</b>\n\n"
-        "Self-hosted analytics you control via Telegram.",
+        "👋 <b>Welcome back!</b>",
         parse_mode="HTML",
         reply_markup=_START_KEYBOARD,
     )

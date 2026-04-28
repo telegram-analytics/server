@@ -80,15 +80,19 @@ async def add_command(
         f"curl -X POST {base}/api/v1/track \\\n"
         f'  -H "Content-Type: application/json" \\\n'
         f'  -d \'{{"api_key": "{api_key}", '
-        f'"event_name": "page_view", "session_id": "user-123"}}\''
+        f'"event_name": "test", "session_id": "demo-session"}}\''
     )
+
+    from app.bot.handlers.onboarding import post_create_keyboard
 
     await update.message.reply_text(
         f"✅ Project <b>{name}</b> created!\n\n"
         f"⚠️ Save this key — it won't be shown again.\n\n"
         f"<b>Env:</b>\n<tg-spoiler><pre>{env_block}</pre></tg-spoiler>\n\n"
-        f"<b>Quickstart:</b>\n<pre>{snippet}</pre>",
+        f"<b>Test it now (curl):</b>\n<pre>{snippet}</pre>\n\n"
+        f"Or pick your stack 👇",
         parse_mode="HTML",
+        reply_markup=post_create_keyboard(project.id),
     )
 
     # Immediately prompt for the domain allowlist for this fresh project.
